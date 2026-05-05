@@ -3,9 +3,14 @@ use minimax_api::types::*;
 use minimax_api::MiniMaxClient;
 
 use rmcp::handler::server::wrapper::Parameters;
+use rmcp::handler::server::ServerHandler;
 use rmcp::model::{CallToolResult, Content};
-use rmcp::{schemars, tool, tool_router, ErrorData, ServiceExt};
+use rmcp::{schemars, tool, tool_handler, tool_router, ErrorData, ServiceExt};
 use tracing_subscriber::EnvFilter;
+
+fn to_mcp_err(e: impl std::fmt::Display) -> ErrorData {
+    ErrorData::internal_error(e.to_string(), None)
+}
 
 #[derive(Clone)]
 struct MiniMaxMcp {
@@ -120,7 +125,7 @@ struct GenerateMusicParams {
 // MCP tool implementations
 // ============================================================
 
-#[tool_router(server_handler)]
+#[tool_router]
 impl MiniMaxMcp {
     #[tool(description = "使用 MiniMax 将文本转为语音，返回音频数据或下载链接")]
     async fn text_to_audio(
@@ -150,9 +155,7 @@ impl MiniMaxMcp {
             output_format: None,
         };
 
-        let resp = self.client.text_to_audio(&req).await.map_err(|e| {
-            ErrorData::internal_error(e.to_string(), None)
-        })?;
+        let resp = self.client.text_to_audio(&req).await.map_err(to_mcp_err)?;
 
         let text = if let Some(data) = &resp.data {
             if let Some(audio) = &data.audio {
@@ -172,9 +175,7 @@ impl MiniMaxMcp {
         &self,
         Parameters(params): Parameters<ListVoicesParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let resp = self.client.list_voices(params.voice_type.as_deref()).await.map_err(|e| {
-            ErrorData::internal_error(e.to_string(), None)
-        })?;
+        let resp = self.client.list_voices(params.voice_type.as_deref()).await.map_err(to_mcp_err)?;
 
         let mut lines = Vec::new();
         lines.push("=== 系统音色 ===".to_string());
@@ -201,16 +202,20 @@ impl MiniMaxMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let file_id = if params.is_url.unwrap_or(false) {
             // Download from URL and upload
-            let tmp = std::env::temp_dir().join("minimax_voice_clone_audio");
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let tmp = std::env::temp_dir().join(format!("minimax_voice_clone_{ts}"));
             self.client
                 .download_to_path(&params.file, &tmp)
                 .await
-                .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                .map_err(to_mcp_err)?;
             let upload = self
                 .client
                 .upload_file(&tmp, "voice_clone")
                 .await
-                .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                .map_err(to_mcp_err)?;
             let _ = std::fs::remove_file(&tmp);
             upload
                 .file
@@ -221,7 +226,7 @@ impl MiniMaxMcp {
                 .client
                 .upload_file(std::path::Path::new(&params.file), "voice_clone")
                 .await
-                .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                .map_err(to_mcp_err)?;
             upload
                 .file
                 .ok_or_else(|| ErrorData::internal_error("upload failed", None))?
@@ -235,9 +240,7 @@ impl MiniMaxMcp {
             model: None,
         };
 
-        let resp = self.client.voice_clone(&req).await.map_err(|e| {
-            ErrorData::internal_error(e.to_string(), None)
-        })?;
+        let resp = self.client.voice_clone(&req).await.map_err(to_mcp_err)?;
 
         Ok(CallToolResult::success(vec![Content::text(format!(
             "音色克隆成功！\nvoice_id: {}\ndemo_audio: {}",
@@ -257,9 +260,7 @@ impl MiniMaxMcp {
             voice_id: params.voice_id,
         };
 
-        let resp = self.client.voice_design(&req).await.map_err(|e| {
-            ErrorData::internal_error(e.to_string(), None)
-        })?;
+        let resp = self.client.voice_design(&req).await.map_err(to_mcp_err)?;
 
         Ok(CallToolResult::success(vec![Content::text(format!(
             "音色设计成功！\nvoice_id: {}\ntrial_audio 长度: {} 字符",
@@ -287,21 +288,18 @@ impl MiniMaxMcp {
         let async_mode = params.async_mode.unwrap_or(true);
 
         if async_mode {
-            let resp = self.client.create_video(&req).await.map_err(|e| {
-                ErrorData::internal_error(e.to_string(), None)
-            })?;
+            let resp = self.client.create_video(&req).await.map_err(to_mcp_err)?;
             Ok(CallToolResult::success(vec![Content::text(format!(
                 "视频任务已提交！\ntask_id: {}\n使用 query_video 查询进度。",
                 resp.task_id
             ))]))
         } else {
             // blocking mode — poll until done
-            let _bytes = self.client.generate_video_and_download(&req).await.map_err(|e| {
-                ErrorData::internal_error(e.to_string(), None)
-            })?;
-            Ok(CallToolResult::success(vec![Content::text(
-                "视频生成完成！数据已下载。".to_string(),
-            )]))
+            let bytes = self.client.generate_video_and_download(&req).await.map_err(to_mcp_err)?;
+            Ok(CallToolResult::success(vec![Content::text(format!(
+                "视频生成完成！大小: {:.1} MB",
+                bytes.len() as f64 / 1_048_576.0
+            ))]))
         }
     }
 
@@ -310,9 +308,7 @@ impl MiniMaxMcp {
         &self,
         Parameters(params): Parameters<QueryVideoParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let resp = self.client.query_video(&params.task_id).await.map_err(|e| {
-            ErrorData::internal_error(e.to_string(), None)
-        })?;
+        let resp = self.client.query_video(&params.task_id).await.map_err(to_mcp_err)?;
 
         match resp.status.as_str() {
             "Success" => {
@@ -350,9 +346,7 @@ impl MiniMaxMcp {
             prompt_optimizer: params.prompt_optimizer,
         };
 
-        let resp = self.client.generate_image(&req).await.map_err(|e| {
-            ErrorData::internal_error(e.to_string(), None)
-        })?;
+        let resp = self.client.generate_image(&req).await.map_err(to_mcp_err)?;
 
         if let Some(data) = &resp.data {
             let urls = data.image_urls.join("\n");
@@ -385,9 +379,7 @@ impl MiniMaxMcp {
             output_format: None,
         };
 
-        let resp = self.client.generate_music(&req).await.map_err(|e| {
-            ErrorData::internal_error(e.to_string(), None)
-        })?;
+        let resp = self.client.generate_music(&req).await.map_err(to_mcp_err)?;
 
         if let Some(data) = &resp.data {
             if let Some(audio) = &data.audio {
@@ -407,6 +399,13 @@ impl MiniMaxMcp {
         }
     }
 }
+
+#[tool_handler(
+    name = "minimax-mcp",
+    version = "0.1.0",
+    instructions = "MiniMax API MCP server — 提供视频生成、语音合成、图像生成、音乐生成等能力。需要设置 MINIMAX_API_KEY 环境变量。"
+)]
+impl ServerHandler for MiniMaxMcp {}
 
 // ============================================================
 // Entry point

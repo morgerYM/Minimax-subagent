@@ -61,5 +61,10 @@ Build a Rust MCP Server CLI that provides MiniMax tools:
 
 MiniMax Rust CLI (separate project): `/Users/yyurk/github_project/minimax-code/`
 
-## error
+##git 保存更改
+在完成计划，并修改完成后，要存档，避免反复修改。保证不会丢失
+
+## error[备注]
 当前文件夹minimax agent 与 minimax-code没有任何关系
+
+
