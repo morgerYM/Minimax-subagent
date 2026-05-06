@@ -32,4 +32,7 @@ pub enum MiniMaxError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("hex decode error: {0}")]
+    HexDecode(String),
 }

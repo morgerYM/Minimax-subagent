@@ -1,6 +1,7 @@
 use minimax_api::consts::*;
 use minimax_api::types::*;
 use minimax_api::MiniMaxClient;
+use minimax_api::utils;
 
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::handler::server::ServerHandler;
@@ -43,6 +44,8 @@ struct TextToAudioParams {
     bitrate: Option<i32>,
     #[schemars(description = "音频格式: mp3/pcm/flac，默认 mp3")]
     format: Option<String>,
+    #[schemars(description = "输出目录（可选）。提供时保存文件到此目录")]
+    output_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -61,6 +64,8 @@ struct VoiceCloneParams {
     text: Option<String>,
     #[schemars(description = "文件是否为 URL")]
     is_url: Option<bool>,
+    #[schemars(description = "输出目录（可选）。提供时保存试听音频到此目录")]
+    output_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -71,6 +76,8 @@ struct VoiceDesignParams {
     preview_text: String,
     #[schemars(description = "自定义 voice_id（可选）")]
     voice_id: Option<String>,
+    #[schemars(description = "输出目录（可选）。提供时保存试听音频到此目录")]
+    output_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -87,12 +94,16 @@ struct GenerateVideoParams {
     resolution: Option<String>,
     #[schemars(description = "异步模式：true 立即返回 task_id，false 等待完成")]
     async_mode: Option<bool>,
+    #[schemars(description = "输出目录（可选）。仅在 async_mode=false 时生效，保存视频到此目录")]
+    output_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 struct QueryVideoParams {
     #[schemars(description = "视频生成任务的 task_id")]
     task_id: String,
+    #[schemars(description = "输出目录（可选）。提供时下载并保存视频到此目录")]
+    output_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -107,6 +118,8 @@ struct GenerateImageParams {
     n: Option<i32>,
     #[schemars(description = "是否启用 prompt 优化，默认 true")]
     prompt_optimizer: Option<bool>,
+    #[schemars(description = "输出目录（可选）。提供时保存图片到此目录")]
+    output_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -119,6 +132,8 @@ struct GenerateMusicParams {
     model: Option<String>,
     #[schemars(description = "音频格式: mp3/wav/pcm，默认 mp3")]
     format: Option<String>,
+    #[schemars(description = "输出目录（可选）。提供时保存音乐到此目录")]
+    output_directory: Option<String>,
 }
 
 // ============================================================
@@ -156,6 +171,23 @@ impl MiniMaxMcp {
         };
 
         let resp = self.client.text_to_audio(&req).await.map_err(to_mcp_err)?;
+
+        if let Some(dir) = &params.output_directory {
+            if let Some(data) = &resp.data {
+                if let Some(audio_hex) = &data.audio {
+                    let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                    let ext = &req.audio_setting.format;
+                    let filename = utils::build_filename("text_to_audio", &req.text, ext);
+                    let filepath = path.join(filename);
+                    let bytes = utils::decode_hex_audio(audio_hex).map_err(to_mcp_err)?;
+                    tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "保存到: {}",
+                        filepath.display()
+                    ))]));
+                }
+            }
+        }
 
         let text = if let Some(data) = &resp.data {
             if let Some(audio) = &data.audio {
@@ -242,6 +274,24 @@ impl MiniMaxMcp {
 
         let resp = self.client.voice_clone(&req).await.map_err(to_mcp_err)?;
 
+        if let Some(dir) = &params.output_directory {
+            if let Some(demo_url) = &resp.demo_audio {
+                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                let text = req.text.as_deref().unwrap_or("voice");
+                let filename = utils::build_filename("voice_clone", text, "wav");
+                let filepath = path.join(filename);
+                self.client
+                    .download_to_path(demo_url, &filepath)
+                    .await
+                    .map_err(to_mcp_err)?;
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "音色克隆成功！\nvoice_id: {}\n保存到: {}",
+                    req.voice_id,
+                    filepath.display()
+                ))]));
+            }
+        }
+
         Ok(CallToolResult::success(vec![Content::text(format!(
             "音色克隆成功！\nvoice_id: {}\ndemo_audio: {}",
             req.voice_id,
@@ -261,6 +311,22 @@ impl MiniMaxMcp {
         };
 
         let resp = self.client.voice_design(&req).await.map_err(to_mcp_err)?;
+
+        if let Some(dir) = &params.output_directory {
+            if let Some(audio_hex) = &resp.trial_audio {
+                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                let filename =
+                    utils::build_filename("voice_design", &req.preview_text, "mp3");
+                let filepath = path.join(filename);
+                let bytes = utils::decode_hex_audio(audio_hex).map_err(to_mcp_err)?;
+                tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "音色设计成功！\nvoice_id: {}\n保存到: {}",
+                    resp.voice_id.unwrap_or_else(|| "未知".to_string()),
+                    filepath.display()
+                ))]));
+            }
+        }
 
         Ok(CallToolResult::success(vec![Content::text(format!(
             "音色设计成功！\nvoice_id: {}\ntrial_audio 长度: {} 字符",
@@ -295,7 +361,21 @@ impl MiniMaxMcp {
             ))]))
         } else {
             // blocking mode — poll until done
-            let bytes = self.client.generate_video_and_download(&req).await.map_err(to_mcp_err)?;
+            let bytes = self
+                .client
+                .generate_video_and_download(&req)
+                .await
+                .map_err(to_mcp_err)?;
+            if let Some(dir) = &params.output_directory {
+                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                let filename = utils::build_filename("video", &req.prompt, "mp4");
+                let filepath = path.join(filename);
+                tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "视频生成完成！保存到: {}",
+                    filepath.display()
+                ))]));
+            }
             Ok(CallToolResult::success(vec![Content::text(format!(
                 "视频生成完成！大小: {:.1} MB",
                 bytes.len() as f64 / 1_048_576.0
@@ -317,7 +397,20 @@ impl MiniMaxMcp {
                     .client
                     .get_file_download_url(file_id)
                     .await
-                    .unwrap_or_else(|_| "获取失败".to_string());
+                    .map_err(to_mcp_err)?;
+                if let Some(dir) = &params.output_directory {
+                    let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                    let filename = utils::build_filename("video", &params.task_id, "mp4");
+                    let filepath = path.join(filename);
+                    self.client
+                        .download_to_path(&download_url, &filepath)
+                        .await
+                        .map_err(to_mcp_err)?;
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "视频生成成功！保存到: {}",
+                        filepath.display()
+                    ))]));
+                }
                 Ok(CallToolResult::success(vec![Content::text(format!(
                     "视频生成成功！\nfile_id: {}\ndownload_url: {}",
                     file_id, download_url
@@ -347,6 +440,30 @@ impl MiniMaxMcp {
         };
 
         let resp = self.client.generate_image(&req).await.map_err(to_mcp_err)?;
+
+        if let Some(dir) = &params.output_directory {
+            if let Some(data) = &resp.data {
+                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                let mut saved = Vec::new();
+                for (i, url) in data.image_urls.iter().enumerate() {
+                    let filename = utils::build_filename(
+                        "image",
+                        &format!("{}_{}", i, req.prompt),
+                        "jpg",
+                    );
+                    let filepath = path.join(&filename);
+                    self.client
+                        .download_to_path(url, &filepath)
+                        .await
+                        .map_err(to_mcp_err)?;
+                    saved.push(filepath.display().to_string());
+                }
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "图像保存到:\n{}",
+                    saved.join("\n")
+                ))]));
+            }
+        }
 
         if let Some(data) = &resp.data {
             let urls = data.image_urls.join("\n");
@@ -380,6 +497,23 @@ impl MiniMaxMcp {
         };
 
         let resp = self.client.generate_music(&req).await.map_err(to_mcp_err)?;
+
+        if let Some(dir) = &params.output_directory {
+            if let Some(data) = &resp.data {
+                if let Some(audio_hex) = &data.audio {
+                    let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                    let ext = &req.audio_setting.format;
+                    let filename = utils::build_filename("music", &req.prompt, ext);
+                    let filepath = path.join(filename);
+                    let bytes = utils::decode_hex_audio(audio_hex).map_err(to_mcp_err)?;
+                    tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "音乐保存到: {}",
+                        filepath.display()
+                    ))]));
+                }
+            }
+        }
 
         if let Some(data) = &resp.data {
             if let Some(audio) = &data.audio {

@@ -2,6 +2,7 @@ pub mod client;
 pub mod consts;
 pub mod error;
 pub mod types;
+pub mod utils;
 
 pub use client::MiniMaxClient;
 pub use error::MiniMaxError;
