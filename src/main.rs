@@ -27,7 +27,7 @@ struct TextToAudioParams {
     text: String,
     #[schemars(description = "音色 ID，默认 female-shaonv")]
     voice_id: Option<String>,
-    #[schemars(description = "模型名称，默认 speech-2.6-hd")]
+    #[schemars(description = "模型名称，默认 speech-2.8-hd")]
     model: Option<String>,
     #[schemars(description = "语速 0.5-2.0，默认 1.0")]
     speed: Option<f64>,

@@ -4,7 +4,7 @@ pub const ENV_API_KEY: &str = "MINIMAX_API_KEY";
 pub const ENV_API_HOST: &str = "MINIMAX_API_HOST";
 
 // TTS models
-pub const DEFAULT_TTS_MODEL: &str = "speech-2.6-hd";
+pub const DEFAULT_TTS_MODEL: &str = "speech-2.8-hd";
 pub const DEFAULT_VOICE_ID: &str = "female-shaonv";
 pub const DEFAULT_SPEED: f64 = 1.0;
 pub const DEFAULT_VOLUME: f64 = 1.0;
