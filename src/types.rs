@@ -1,4 +1,8 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+fn null_to_default<'de, D: Deserializer<'de>, T: Default + Deserialize<'de>>(de: D) -> Result<T, D::Error> {
+    Option::deserialize(de).map(|v| v.unwrap_or_default())
+}
 
 // ============================================================
 // Base response — common to all MiniMax API responses
@@ -91,9 +95,9 @@ pub struct VoiceListRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct VoiceListResponse {
     pub base_resp: BaseResponse,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub system_voice: Vec<VoiceInfo>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub voice_cloning: Vec<VoiceInfo>,
 }
 
@@ -213,7 +217,7 @@ pub struct ImageGenerationResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ImageData {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub image_urls: Vec<String>,
 }
 
