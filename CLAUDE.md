@@ -67,4 +67,10 @@ MiniMax Rust CLI (separate project): `/Users/yyurk/github_project/minimax-code/`
 ## error[备注]
 当前文件夹minimax agent 与 minimax-code没有任何关系
 
+### Rust 编译陷阱
+- MCP 服务器运行时使用 `target/release/minimax-mcp`，修改代码后必须 `cargo build --release` 而非 `cargo build`
+- 在 tool handler 中，`params.xxx` 字段在构造 `req` 时会被 move，之后只能通过 `req.xxx` 访问对应值（如 `req.text`、`req.prompt`、`req.audio_setting.format`），不可再用 `params.xxx`
+- MCP 服务器进程需要 kill 后重启：`pkill -f minimax-mcp`，之后退出并重进 Claude Code 才会重新加载
+- `voice_design` 和 `voice_clone` 需要较大账户余额，不建议使用，否则报 API error 1008: insufficient balance
+
 
