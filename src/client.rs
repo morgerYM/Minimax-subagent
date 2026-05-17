@@ -59,6 +59,7 @@ impl MiniMaxClient {
             .http
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("MM-API-Source", "Minimax-MCP")
             .json(body)
             .send()
             .await?;
@@ -83,6 +84,7 @@ impl MiniMaxClient {
             .http
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("MM-API-Source", "Minimax-MCP")
             .send()
             .await?;
 
@@ -148,7 +150,7 @@ impl MiniMaxClient {
         voice_type: Option<&str>,
     ) -> Result<VoiceListResponse, MiniMaxError> {
         let req = VoiceListRequest {
-            voice_type: voice_type.map(String::from),
+            voice_type: voice_type.map(String::from).or_else(|| Some("system".to_string())),
         };
         self.post_json("/v1/get_voice", &req).await
     }
@@ -295,6 +297,94 @@ impl MiniMaxClient {
     }
 
     // ============================================================
+    // Token Plan
+    // ============================================================
+
+    /// GET /v1/token_plan/remains — query token usage and plan balance.
+    pub async fn get_token_plan_remains(
+        &self,
+    ) -> Result<TokenPlanResponse, MiniMaxError> {
+        self.get_json("/v1/token_plan/remains").await
+    }
+
+    // ============================================================
+    // Chat — Anthropic-compatible
+    // ============================================================
+
+    /// POST /v1/messages — Anthropic-compatible chat.
+    ///
+    /// Does NOT use `post_json` because this endpoint returns
+    /// pure Anthropic format without `base_resp` wrapper.
+    pub async fn chat(&self, req: &ChatRequest) -> Result<ChatResponse, MiniMaxError> {
+        let url = format!("{}/anthropic/v1/messages", self.base_url);
+        let response = self
+            .http
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("MM-API-Source", "Minimax-MCP")
+            .json(req)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(MiniMaxError::Api {
+                code: status as i32,
+                message: body,
+                trace_id: None,
+            });
+        }
+
+        Ok(response.json().await?)
+    }
+
+    // ============================================================
+    // Lyrics Generation
+    // ============================================================
+
+    /// POST /v1/lyrics_generation — generate song lyrics.
+    pub async fn generate_lyrics(
+        &self,
+        req: &LyricsGenerationRequest,
+    ) -> Result<LyricsGenerationResponse, MiniMaxError> {
+        self.post_json("/v1/lyrics_generation", req).await
+    }
+
+    // ============================================================
+    // Search — POST /v1/coding_plan/search
+    // ============================================================
+
+    /// POST /v1/coding_plan/search — web search via MiniMax Coding Plan.
+    pub async fn search(&self, req: &SearchRequest) -> Result<SearchResponse, MiniMaxError> {
+        self.post_json("/v1/coding_plan/search", req).await
+    }
+
+    // ============================================================
+    // VLM — POST /v1/coding_plan/vlm
+    // ============================================================
+
+    /// POST /v1/coding_plan/vlm — vision language model for image understanding.
+    pub async fn vlm(&self, req: &VlmRequest) -> Result<VlmResponse, MiniMaxError> {
+        self.post_json("/v1/coding_plan/vlm", req).await
+    }
+
+    // ============================================================
+    // Music Cover
+    // ============================================================
+
+    /// POST /v1/music_cover_preprocess — preprocess audio for cover generation.
+    pub async fn preprocess_music_cover(
+        &self,
+        audio_url: &str,
+    ) -> Result<MusicCoverPreprocessResponse, MiniMaxError> {
+        let req = MusicCoverPreprocessRequest {
+            audio_url: audio_url.to_string(),
+        };
+        self.post_json("/v1/music_cover_preprocess", &req).await
+    }
+
+    // ============================================================
     // File Management
     // ============================================================
 
@@ -332,6 +422,7 @@ impl MiniMaxClient {
             .http
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("MM-API-Source", "Minimax-MCP")
             .multipart(form)
             .send()
             .await?;

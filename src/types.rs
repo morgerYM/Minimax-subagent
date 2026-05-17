@@ -88,7 +88,7 @@ pub struct ExtraInfo {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct VoiceListRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub voice_type: Option<String>,
 }
 
@@ -233,6 +233,10 @@ pub struct MusicGenerationRequest {
     pub audio_setting: MusicAudioSetting,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_feature_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -262,4 +266,160 @@ pub struct FileUploadResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UploadedFileInfo {
     pub file_id: String,
+}
+
+// ============================================================
+// Token Plan — GET /v1/token_plan/remains
+// ============================================================
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TokenPlanResponse {
+    pub base_resp: BaseResponse,
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
+}
+
+// ============================================================
+// Chat — POST /v1/messages (Anthropic 兼容)
+// ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatRequest {
+    pub model: String,
+    pub messages: Vec<ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f64>,
+    pub stream: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatResponse {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub role: String,
+    #[serde(default)]
+    pub content: Vec<ChatContentBlock>,
+    #[serde(default)]
+    pub stop_reason: Option<String>,
+    #[serde(default)]
+    pub usage: Option<ChatUsage>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatContentBlock {
+    #[serde(rename = "type")]
+    pub block_type: String,
+    #[serde(default)]
+    pub text: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatUsage {
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+}
+
+// ============================================================
+// Lyrics Generation — POST /v1/lyrics_generation
+// ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LyricsGenerationRequest {
+    pub mode: String,
+    pub prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lyrics: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LyricsGenerationResponse {
+    pub base_resp: BaseResponse,
+    #[serde(default)]
+    pub song_title: Option<String>,
+    #[serde(default)]
+    pub style_tags: Option<String>,
+    #[serde(default)]
+    pub lyrics: Option<String>,
+}
+
+// ============================================================
+// Music Cover — POST /v1/music_cover_preprocess
+// ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MusicCoverPreprocessRequest {
+    pub audio_url: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MusicCoverPreprocessResponse {
+    pub base_resp: BaseResponse,
+    #[serde(default)]
+    pub cover_feature_id: Option<String>,
+}
+
+// ============================================================
+// Search — POST /v1/coding_plan/search
+// ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SearchRequest {
+    pub q: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchResponse {
+    #[serde(default)]
+    pub organic: Vec<SearchResult>,
+    #[serde(default)]
+    pub related_searches: Vec<RelatedSearch>,
+    #[serde(default)]
+    pub base_resp: Option<BaseResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchResult {
+    pub title: String,
+    pub link: String,
+    pub snippet: String,
+    #[serde(default)]
+    pub date: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RelatedSearch {
+    pub query: String,
+}
+
+// ============================================================
+// VLM (Vision Language Model) — POST /v1/coding_plan/vlm
+// ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VlmRequest {
+    pub prompt: String,
+    pub image_url: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct VlmResponse {
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub base_resp: Option<BaseResponse>,
 }
