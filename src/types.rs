@@ -8,7 +8,7 @@ fn null_to_default<'de, D: Deserializer<'de>, T: Default + Deserialize<'de>>(de:
 // Base response — common to all MiniMax API responses
 // ============================================================
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BaseResponse {
     pub status_code: i32,
     pub status_msg: String,
@@ -53,22 +53,28 @@ pub struct AudioSetting {
     pub channel: i32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct T2AResponse {
     pub base_resp: BaseResponse,
     #[serde(default)]
     pub data: Option<AudioData>,
     #[serde(default)]
     pub extra_info: Option<ExtraInfo>,
+    #[serde(default)]
+    pub trace_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioData {
     #[serde(default)]
     pub audio: Option<String>,
+    #[serde(default)]
+    pub status: Option<i32>,
+    #[serde(default)]
+    pub ced: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtraInfo {
     #[serde(default)]
     pub audio_length: Option<i32>,
@@ -80,6 +86,14 @@ pub struct ExtraInfo {
     pub bitrate: Option<i32>,
     #[serde(default)]
     pub word_count: Option<i32>,
+    #[serde(default)]
+    pub invisible_character_ratio: Option<f64>,
+    #[serde(default)]
+    pub usage_characters: Option<i32>,
+    #[serde(default)]
+    pub audio_format: Option<String>,
+    #[serde(default)]
+    pub audio_channel: Option<i32>,
 }
 
 // ============================================================
@@ -237,6 +251,8 @@ pub struct MusicGenerationRequest {
     pub audio_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover_feature_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timbre: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -404,6 +420,48 @@ pub struct SearchResult {
 #[derive(Debug, Clone, Deserialize)]
 pub struct RelatedSearch {
     pub query: String,
+}
+
+// ============================================================
+// Async TTS — POST /v1/t2a_async_v2 & GET /v1/query/t2a_async_query_v2
+// ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct T2AAsyncRequest {
+    pub model: String,
+    pub text: String,
+    pub voice_setting: VoiceSetting,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_setting: Option<AsyncAudioSetting>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language_boost: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AsyncAudioSetting {
+    pub audio_sample_rate: i32,
+    pub bitrate: i32,
+    pub format: String,
+    pub channel: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct T2AAsyncCreateResponse {
+    pub base_resp: BaseResponse,
+    pub task_id: i64,
+    pub task_token: String,
+    pub file_id: i64,
+    #[serde(default)]
+    pub usage_characters: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct T2AAsyncQueryResponse {
+    pub base_resp: BaseResponse,
+    pub status: String,
+    pub task_id: i64,
+    #[serde(default)]
+    pub file_id: Option<i64>,
 }
 
 // ============================================================

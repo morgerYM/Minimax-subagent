@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "minimax-mcp": {
+      "command": "/Users/yyurk/my_project/minimax_agent/target/release/minimax-mcp",
+      "args": []
+    }
+  }
+}

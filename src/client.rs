@@ -370,6 +370,156 @@ impl MiniMaxClient {
     }
 
     // ============================================================
+    // Async TTS — POST /v1/t2a_async_v2
+    // ============================================================
+
+    /// POST /v1/t2a_async_v2 — submit an async text-to-speech task.
+    pub async fn create_async_tts(
+        &self,
+        req: &T2AAsyncRequest,
+    ) -> Result<T2AAsyncCreateResponse, MiniMaxError> {
+        self.post_json("/v1/t2a_async_v2", req).await
+    }
+
+    /// GET /v1/query/t2a_async_query_v2?task_id= — query async TTS task status.
+    pub async fn query_async_tts(
+        &self,
+        task_id: i64,
+    ) -> Result<T2AAsyncQueryResponse, MiniMaxError> {
+        let endpoint = format!("/v1/query/t2a_async_query_v2?task_id={}", task_id);
+        self.get_json(&endpoint).await
+    }
+
+    /// Poll `/v1/files/retrieve?file_id=` until the download URL is available.
+    ///
+    /// Returns the download_url when ready. Handles 2013 (file not found) as
+    /// "not ready yet" rather than an error.
+    pub async fn poll_file_download_url(
+        &self,
+        file_id: i64,
+        max_retries: i32,
+        interval: u64,
+    ) -> Result<String, MiniMaxError> {
+        let endpoint = format!("/v1/files/retrieve?file_id={}", file_id);
+        let url = format!("{}{}", self.base_url, endpoint);
+
+        for attempt in 0..max_retries {
+            let response = self
+                .http
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("MM-API-Source", "Minimax-MCP")
+                .send()
+                .await?;
+
+            let value: serde_json::Value = response.json().await?;
+
+            // Check base_resp manually to handle 2013 as "not ready"
+            let code = value
+                .get("base_resp")
+                .and_then(|b| b.get("status_code"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(-1);
+
+            if code == 2013 {
+                info!(
+                    "Async TTS file {} not ready yet (attempt {}/{})",
+                    file_id,
+                    attempt + 1,
+                    max_retries
+                );
+                sleep(Duration::from_secs(interval)).await;
+                continue;
+            }
+            if code != 0 {
+                let message = value
+                    .get("base_resp")
+                    .and_then(|b| b.get("status_msg"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown error");
+                return Err(MiniMaxError::Api {
+                    code: code as i32,
+                    message: message.to_string(),
+                    trace_id: None,
+                });
+            }
+
+            let resp: FileRetrieveResponse = serde_json::from_value(value)?;
+            if let Some(file) = resp.file {
+                return Ok(file.download_url);
+            }
+        }
+
+        Err(MiniMaxError::TaskTimeout {
+            task_id: file_id.to_string(),
+            max_retries,
+        })
+    }
+
+    /// Submit async TTS, poll for completion, download tar, extract mp3 bytes.
+    ///
+    /// Returns the extracted mp3 file bytes.
+    pub async fn async_tts_and_extract_mp3(
+        &self,
+        req: &T2AAsyncRequest,
+    ) -> Result<Vec<u8>, MiniMaxError> {
+        let task = self.create_async_tts(req).await?;
+        info!("Async TTS task created: {}", task.task_id);
+
+        let download_url = self
+            .poll_file_download_url(
+                task.file_id,
+                ASYNC_TTS_MAX_POLL_RETRIES,
+                ASYNC_TTS_POLL_INTERVAL_SECS,
+            )
+            .await?;
+
+        info!("Downloading async TTS result tar...");
+        let tar_bytes = self
+            .http
+            .get(&download_url)
+            .send()
+            .await?
+            .bytes()
+            .await?;
+
+        // Extract the mp3 from the tar archive
+        let mut tar = tar::Archive::new(std::io::Cursor::new(&tar_bytes));
+        for entry in tar.entries().map_err(|e| MiniMaxError::Api {
+            code: -1,
+            message: format!("tar read error: {e}"),
+            trace_id: None,
+        })? {
+            let mut entry = entry.map_err(|e| MiniMaxError::Api {
+                code: -1,
+                message: format!("tar entry error: {e}"),
+                trace_id: None,
+            })?;
+            let path = entry.path().map_err(|e| MiniMaxError::Api {
+                code: -1,
+                message: format!("tar path error: {e}"),
+                trace_id: None,
+            })?;
+            let name = path.to_string_lossy();
+            if name.ends_with(".mp3") {
+                let mut out = Vec::new();
+                std::io::copy(&mut entry, &mut out).map_err(|e| MiniMaxError::Api {
+                    code: -1,
+                    message: format!("tar extract error: {e}"),
+                    trace_id: None,
+                })?;
+                return Ok(out);
+            }
+        }
+
+        Err(MiniMaxError::Api {
+            code: -1,
+            message: "no mp3 found in tar".to_string(),
+            trace_id: None,
+        })
+    }
+
+    // ============================================================
     // Music Cover
     // ============================================================
 
@@ -450,6 +600,12 @@ impl MiniMaxClient {
         }
         tokio::fs::write(output, bytes).await?;
         Ok(())
+    }
+
+    /// Download raw bytes from a URL.
+    pub async fn download_bytes(&self, url: &str) -> Result<Vec<u8>, MiniMaxError> {
+        let bytes = self.http.get(url).send().await?.bytes().await?;
+        Ok(bytes.to_vec())
     }
 }
 

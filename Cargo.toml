@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "minimax-mcp"
 path = "src/main.rs"
 
+[[bin]]
+name = "minimax"
+path = "src/bin/main_cli.rs"
+
 [dependencies]
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "fs"] }
@@ -26,3 +30,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.22"
 hex = "0.4"
+tar = "0.4"
