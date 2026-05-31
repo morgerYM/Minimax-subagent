@@ -37,6 +37,60 @@ export MINIMAX_API_KEY=your_key          # Global  (api.minimax.io)
 - Add via binary path: `/path/to/minimax_agent/target/release/minimax-mcp`
 - After code changes: `pkill -f minimax-mcp`, then restart Claude Code
 
+## Git & Publishing
+
+### Privacy Rules (DO NOT COMMIT)
+
+- **`.claude/`** — contains local settings and possibly API keys, use `.git/info/exclude` instead
+- **`.gitignore`** — may contain personal comments; put all ignore rules in `.git/info/exclude`
+- **`.env`** — never commit environment files
+- **Absolute paths** — never commit paths containing your username (`/Users/xxx/...`), use `/path/to/...` in docs
+- **mp3 / media files** — generated outputs should not be committed
+
+### Local-only Ignore Rules
+
+Use `.git/info/exclude` (works exactly like `.gitignore` but stays local):
+
+```
+target/
+.claude/
+.gitignore
+.env
+*.mp3
+```
+
+### Commit Email Privacy
+
+Use GitHub's noreply email to avoid leaking your real email:
+
+```bash
+git config --global user.email "ID+username@users.noreply.github.com"
+```
+
+If existing commits have a private email, GitHub will reject the push with `GH007`. Fix with:
+
+```bash
+git filter-branch -f --env-filter '
+  export GIT_AUTHOR_EMAIL="ID+username@users.noreply.github.com"
+  export GIT_COMMITTER_EMAIL="ID+username@users.noreply.github.com"
+' -- --all
+rm -rf .git/refs/original/
+```
+
+### First Push to New Remote
+
+```bash
+git remote add origin https://github.com/user/repo.git
+git branch -M main
+git push -u origin main
+```
+
+### Gotchas
+
+- `git filter-branch` creates backup refs in `.git/refs/original/` — delete them and run `git gc` to avoid duplicate commits
+- After filter-branch, the remote tracking branch is stale — use `git push --force` (not `--force-with-lease`)
+- `git rebase -i --root` will fail if any untracked local files overlap with files being replayed from history — move them to `/tmp` first
+
 ## Architecture
 
 ```
