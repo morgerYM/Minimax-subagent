@@ -34,7 +34,7 @@ export MINIMAX_API_KEY=your_key          # 国际区 (api.minimax.io)
 ### 添加 MCP Server 到 Claude Code
 
 - **无需输入 API key** — server 启动时自动从 shell 环境变量读取 `MINIMAX_API_KEY`
-- 通过二进制路径添加：`/Users/yyurk/my_project/minimax_agent/target/release/minimax-mcp`
+- 通过二进制路径添加：`/path/to/minimax_agent/target/release/minimax-mcp`
 - 代码修改后需重启：先执行 `pkill -f minimax-mcp`，然后退出并重新进入 Claude Code
 
 ## 架构
@@ -133,7 +133,7 @@ afplay <file_path>
 
 ### 相关项目
 
-- MiniMax Rust CLI（独立项目）：`/Users/yyurk/github_project/minimax-code/` — **与本项目无关**
+- MiniMax Rust CLI（独立项目） — **与本项目无关**
 
 ### 验证习惯
 

@@ -34,7 +34,7 @@ export MINIMAX_API_KEY=your_key          # Global  (api.minimax.io)
 ### Adding the MCP Server to Claude Code
 
 - **Do NOT enter an API key** — the server reads `MINIMAX_API_KEY` from the shell environment automatically
-- Add via binary path: `/Users/yyurk/my_project/minimax_agent/target/release/minimax-mcp`
+- Add via binary path: `/path/to/minimax_agent/target/release/minimax-mcp`
 - After code changes: `pkill -f minimax-mcp`, then restart Claude Code
 
 ## Architecture
@@ -133,4 +133,4 @@ afplay <file_path>
 
 ### Related Projects
 
-- MiniMax Rust CLI (separate project): `/Users/yyurk/github_project/minimax-code/` — **not related** to this repo
+- MiniMax Rust CLI (separate project) — **not related** to this repo

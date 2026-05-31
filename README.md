@@ -99,7 +99,7 @@ claude mcp list
 {
   "mcpServers": {
     "minimax": {
-      "command": "/Users/yyurk/my_project/minimax_agent/target/release/minimax-mcp"
+      "command": "/path/to/minimax_agent/target/release/minimax-mcp"
     }
   }
 }
