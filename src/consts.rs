@@ -14,6 +14,7 @@ pub const DEFAULT_SAMPLE_RATE: i32 = 32000;
 pub const DEFAULT_BITRATE: i32 = 128000;
 pub const DEFAULT_FORMAT: &str = "mp3";
 pub const DEFAULT_CHANNEL: i32 = 1;
+pub const DEFAULT_CHANNEL_ASYNC: i32 = 2;
 pub const DEFAULT_LANGUAGE_BOOST: &str = "auto";
 
 // Video models

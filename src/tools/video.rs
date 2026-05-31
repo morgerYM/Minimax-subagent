@@ -1,0 +1,158 @@
+//! Video generation tool handlers.
+//!
+//! Provides video generation and query via MiniMax Video API,
+//! including async task submission and polling.
+
+use minimax_api::consts::*;
+use minimax_api::types::*;
+use minimax_api::utils;
+use minimax_api::MiniMaxClient;
+
+use crate::mcp_params::*;
+use crate::to_mcp_err;
+
+use rmcp::model::{CallToolResult, Content};
+use rmcp::ErrorData;
+
+pub async fn handle_generate_video(
+    client: &MiniMaxClient,
+    params: GenerateVideoParams,
+) -> Result<CallToolResult, ErrorData> {
+    let req = VideoGenerationRequest {
+        model: params.model.unwrap_or_else(|| DEFAULT_VIDEO_MODEL.to_string()),
+        prompt: params.prompt,
+        first_frame_image: params.first_frame_image,
+        last_frame_image: params.last_frame_image,
+        subject_reference: None,
+        duration: params.duration,
+        resolution: params.resolution,
+        prompt_optimizer: params.prompt_optimizer,
+        fast_pretreatment: params.fast_pretreatment,
+        callback_url: params.callback_url,
+        aigc_watermark: params.aigc_watermark,
+    };
+
+    let async_mode = params.async_mode.unwrap_or(true);
+
+    if async_mode {
+        let resp = client.create_video(&req).await.map_err(to_mcp_err)?;
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "Video task submitted!\ntask_id: {}\nUse query_video to poll progress.",
+            resp.task_id
+        ))]))
+    } else {
+        let bytes = client
+            .generate_video_and_download(&req)
+            .await
+            .map_err(to_mcp_err)?;
+        if let Some(dir) = &params.output_directory {
+            let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+            let filename = utils::build_filename("video", &req.prompt, "mp4");
+            let filepath = path.join(filename);
+            tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
+            return Ok(CallToolResult::success(vec![Content::text(format!(
+                "Video generated! Saved to: {}",
+                filepath.display()
+            ))]));
+        }
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "Video generated! Size: {:.1} MB",
+            bytes.len() as f64 / 1_048_576.0
+        ))]))
+    }
+}
+
+pub async fn handle_query_video(
+    client: &MiniMaxClient,
+    params: QueryVideoParams,
+) -> Result<CallToolResult, ErrorData> {
+    let resp = client.query_video(&params.task_id).await.map_err(to_mcp_err)?;
+
+    match resp.status.as_str() {
+        "Success" => {
+            let file_id = resp.file_id.as_deref().unwrap_or("N/A");
+            let download_url = client
+                .get_file_download_url(file_id)
+                .await
+                .map_err(to_mcp_err)?;
+            if let Some(dir) = &params.output_directory {
+                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
+                let filename = utils::build_filename("video", &params.task_id, "mp4");
+                let filepath = path.join(filename);
+                client
+                    .download_to_path(&download_url, &filepath)
+                    .await
+                    .map_err(to_mcp_err)?;
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "Video generated! Saved to: {}",
+                    filepath.display()
+                ))]));
+            }
+            Ok(CallToolResult::success(vec![Content::text(format!(
+                "Video generated!\nfile_id: {}\ndownload_url: {}",
+                file_id, download_url
+            ))]))
+        }
+        "Fail" => Ok(CallToolResult::success(vec![Content::text(
+            "Video generation failed, please check prompt and retry.".to_string(),
+        )])),
+        status => Ok(CallToolResult::success(vec![Content::text(format!(
+            "Video task status: {}\ntask_id: {}",
+            status, params.task_id
+        ))])),
+    }
+}
+
+pub async fn handle_generate_video_agent(
+    client: &MiniMaxClient,
+    params: GenerateVideoAgentParams,
+) -> Result<CallToolResult, ErrorData> {
+    let req = VideoTemplateGenerationRequest {
+        template_id: params.template_id,
+        text_inputs: params.text_inputs.map(|vals| {
+            vals.into_iter().map(|v| TextInput {
+                value: v["value"].as_str().unwrap_or_default().to_string(),
+            }).collect()
+        }),
+        media_inputs: params.media_inputs.map(|vals| {
+            vals.into_iter().map(|v| MediaInput {
+                value: v["value"].as_str().unwrap_or_default().to_string(),
+            }).collect()
+        }),
+        callback_url: params.callback_url,
+    };
+
+    let resp = client.create_video_template(&req).await.map_err(to_mcp_err)?;
+
+    Ok(CallToolResult::success(vec![Content::text(format!(
+        "Video Agent task submitted!\ntask_id: {}\nUse query_video_agent to poll progress.",
+        resp.task_id.as_deref().unwrap_or("N/A")
+    ))]))
+}
+
+pub async fn handle_query_video_agent(
+    client: &MiniMaxClient,
+    params: QueryVideoAgentParams,
+) -> Result<CallToolResult, ErrorData> {
+    let resp = client
+        .query_video_template(&params.task_id)
+        .await
+        .map_err(to_mcp_err)?;
+
+    match resp.status.as_str() {
+        "Success" => {
+            let url = resp.video_url.as_deref().unwrap_or("N/A");
+            Ok(CallToolResult::success(vec![Content::text(format!(
+                "Video Agent task succeeded!\ntask_id: {}\nvideo_url: {}",
+                params.task_id, url
+            ))]))
+        }
+        "Fail" => Ok(CallToolResult::success(vec![Content::text(
+            "Video Agent task failed, please check parameters and retry.".to_string(),
+        )])),
+        status => Ok(CallToolResult::success(vec![Content::text(format!(
+            "Video Agent task status: {}\ntask_id: {}",
+            status, params.task_id
+        ))])),
+    }
+}

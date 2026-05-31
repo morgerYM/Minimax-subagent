@@ -20,8 +20,8 @@ use crate::types::*;
 #[derive(Clone)]
 pub struct MiniMaxClient {
     http: reqwest::Client,
-    base_url: String,
-    api_key: String,
+    pub base_url: String,
+    pub api_key: String,
 }
 
 impl MiniMaxClient {
@@ -45,9 +45,7 @@ impl MiniMaxClient {
         Ok(Self::new(api_key, base_url))
     }
 
-    // ============================================================
     // Internal helpers
-    // ============================================================
 
     async fn post_json<T: Serialize, R: DeserializeOwned>(
         &self,
@@ -124,10 +122,6 @@ impl MiniMaxClient {
         Ok(())
     }
 
-    // ============================================================
-    // TTS (Text to Speech)
-    // ============================================================
-
     /// POST /v1/t2a_v2 — synchronous text-to-speech.
     ///
     /// Returns the response containing hex-encoded audio or an audio URL.
@@ -137,10 +131,6 @@ impl MiniMaxClient {
     ) -> Result<T2AResponse, MiniMaxError> {
         self.post_json("/v1/t2a_v2", req).await
     }
-
-    // ============================================================
-    // Voices
-    // ============================================================
 
     /// POST /v1/get_voice — list available voices.
     ///
@@ -171,9 +161,13 @@ impl MiniMaxClient {
         self.post_json("/v1/voice_design", req).await
     }
 
-    // ============================================================
-    // Video Generation
-    // ============================================================
+    /// POST /v1/delete_voice — delete a voice.
+    pub async fn delete_voice(
+        &self,
+        req: &DeleteVoiceRequest,
+    ) -> Result<BaseResponse, MiniMaxError> {
+        self.post_json("/v1/delete_voice", req).await
+    }
 
     /// POST /v1/video_generation — submit a video generation task.
     ///
@@ -202,7 +196,7 @@ impl MiniMaxClient {
         let endpoint = format!("/v1/files/retrieve?file_id={}", file_id);
         let resp: FileRetrieveResponse = self.get_json(&endpoint).await?;
         resp.file
-            .map(|f| f.download_url)
+            .and_then(|f| f.download_url)
             .ok_or_else(|| MiniMaxError::Api {
                 code: -1,
                 message: "no download_url in response".to_string(),
@@ -272,10 +266,6 @@ impl MiniMaxClient {
         })
     }
 
-    // ============================================================
-    // Image Generation
-    // ============================================================
-
     /// POST /v1/image_generation — generate images from a text prompt.
     pub async fn generate_image(
         &self,
@@ -283,10 +273,6 @@ impl MiniMaxClient {
     ) -> Result<ImageGenerationResponse, MiniMaxError> {
         self.post_json("/v1/image_generation", req).await
     }
-
-    // ============================================================
-    // Music Generation
-    // ============================================================
 
     /// POST /v1/music_generation — generate music from a prompt and lyrics.
     pub async fn generate_music(
@@ -296,20 +282,12 @@ impl MiniMaxClient {
         self.post_json("/v1/music_generation", req).await
     }
 
-    // ============================================================
-    // Token Plan
-    // ============================================================
-
     /// GET /v1/token_plan/remains — query token usage and plan balance.
     pub async fn get_token_plan_remains(
         &self,
     ) -> Result<TokenPlanResponse, MiniMaxError> {
         self.get_json("/v1/token_plan/remains").await
     }
-
-    // ============================================================
-    // Chat — Anthropic-compatible
-    // ============================================================
 
     /// POST /v1/messages — Anthropic-compatible chat.
     ///
@@ -339,10 +317,6 @@ impl MiniMaxClient {
         Ok(response.json().await?)
     }
 
-    // ============================================================
-    // Lyrics Generation
-    // ============================================================
-
     /// POST /v1/lyrics_generation — generate song lyrics.
     pub async fn generate_lyrics(
         &self,
@@ -351,27 +325,15 @@ impl MiniMaxClient {
         self.post_json("/v1/lyrics_generation", req).await
     }
 
-    // ============================================================
-    // Search — POST /v1/coding_plan/search
-    // ============================================================
-
     /// POST /v1/coding_plan/search — web search via MiniMax Coding Plan.
     pub async fn search(&self, req: &SearchRequest) -> Result<SearchResponse, MiniMaxError> {
         self.post_json("/v1/coding_plan/search", req).await
     }
 
-    // ============================================================
-    // VLM — POST /v1/coding_plan/vlm
-    // ============================================================
-
     /// POST /v1/coding_plan/vlm — vision language model for image understanding.
     pub async fn vlm(&self, req: &VlmRequest) -> Result<VlmResponse, MiniMaxError> {
         self.post_json("/v1/coding_plan/vlm", req).await
     }
-
-    // ============================================================
-    // Async TTS — POST /v1/t2a_async_v2
-    // ============================================================
 
     /// POST /v1/t2a_async_v2 — submit an async text-to-speech task.
     pub async fn create_async_tts(
@@ -446,7 +408,9 @@ impl MiniMaxClient {
 
             let resp: FileRetrieveResponse = serde_json::from_value(value)?;
             if let Some(file) = resp.file {
-                return Ok(file.download_url);
+                if let Some(url) = file.download_url {
+                    return Ok(url);
+                }
             }
         }
 
@@ -519,10 +483,6 @@ impl MiniMaxClient {
         })
     }
 
-    // ============================================================
-    // Music Cover
-    // ============================================================
-
     /// POST /v1/music_cover_preprocess — preprocess audio for cover generation.
     pub async fn preprocess_music_cover(
         &self,
@@ -530,13 +490,11 @@ impl MiniMaxClient {
     ) -> Result<MusicCoverPreprocessResponse, MiniMaxError> {
         let req = MusicCoverPreprocessRequest {
             audio_url: audio_url.to_string(),
+            audio_base64: None,
+            model: None,
         };
         self.post_json("/v1/music_cover_preprocess", &req).await
     }
-
-    // ============================================================
-    // File Management
-    // ============================================================
 
     /// POST /v1/files/upload — upload a file via multipart form.
     pub async fn upload_file(
@@ -606,6 +564,67 @@ impl MiniMaxClient {
     pub async fn download_bytes(&self, url: &str) -> Result<Vec<u8>, MiniMaxError> {
         let bytes = self.http.get(url).send().await?.bytes().await?;
         Ok(bytes.to_vec())
+    }
+
+    /// GET /v1/files/list?purpose= — list files in a category.
+    pub async fn list_files(&self, purpose: &str) -> Result<FileListResponse, MiniMaxError> {
+        let endpoint = format!("/v1/files/list?purpose={}", purpose);
+        self.get_json(&endpoint).await
+    }
+
+    /// GET /v1/files/retrieve?file_id= — get full file info (same API as get_file_download_url).
+    pub async fn retrieve_file_info(
+        &self,
+        file_id: i64,
+    ) -> Result<FileRetrieveResponse, MiniMaxError> {
+        let endpoint = format!("/v1/files/retrieve?file_id={}", file_id);
+        self.get_json(&endpoint).await
+    }
+
+    /// GET /v1/files/retrieve_content?file_id= — download binary file content.
+    pub async fn retrieve_file_content(
+        &self,
+        file_id: i64,
+    ) -> Result<Vec<u8>, MiniMaxError> {
+        let url = format!("{}/v1/files/retrieve_content?file_id={}", self.base_url, file_id);
+        let response = self
+            .http
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("MM-API-Source", "Minimax-MCP")
+            .send()
+            .await?;
+        Ok(response.bytes().await?.to_vec())
+    }
+
+    /// POST /v1/files/delete — delete a file.
+    pub async fn delete_file(
+        &self,
+        file_id: i64,
+        purpose: &str,
+    ) -> Result<FileDeleteResponse, MiniMaxError> {
+        let req = FileDeleteRequest {
+            file_id,
+            purpose: purpose.to_string(),
+        };
+        self.post_json("/v1/files/delete", &req).await
+    }
+
+    /// POST /v1/video_template_generation — create a video agent task.
+    pub async fn create_video_template(
+        &self,
+        req: &VideoTemplateGenerationRequest,
+    ) -> Result<VideoTemplateGenerationResponse, MiniMaxError> {
+        self.post_json("/v1/video_template_generation", req).await
+    }
+
+    /// GET /v1/query/video_template_generation?task_id= — query video agent task status.
+    pub async fn query_video_template(
+        &self,
+        task_id: &str,
+    ) -> Result<VideoTemplateQueryResponse, MiniMaxError> {
+        let endpoint = format!("/v1/query/video_template_generation?task_id={}", task_id);
+        self.get_json(&endpoint).await
     }
 }
 

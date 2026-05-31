@@ -24,12 +24,56 @@ pub struct T2ARequest {
     pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_options: Option<T2AStreamOption>,
     pub voice_setting: VoiceSetting,
     pub audio_setting: AudioSetting,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub pronunciation_dict: Option<PronunciationDict>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timbre_weights: Option<Vec<TimbreWeights>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub language_boost: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_modify: Option<VoiceModify>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle_enable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub output_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aigc_watermark: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct T2AStreamOption {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_aggregated_audio: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PronunciationDict {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tone: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TimbreWeights {
+    pub voice_id: String,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VoiceModify {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pitch: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intensity: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timbre: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sound_effects: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -43,6 +87,12 @@ pub struct VoiceSetting {
     pub pitch: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub emotion: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_normalization: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latex_read: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub english_normalization: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,6 +101,8 @@ pub struct AudioSetting {
     pub bitrate: i32,
     pub format: String,
     pub channel: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force_cbr: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +123,7 @@ pub struct AudioData {
     #[serde(default)]
     pub status: Option<i32>,
     #[serde(default)]
-    pub ced: Option<String>,
+    pub subtitle_file: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +158,21 @@ pub struct VoiceListRequest {
     pub voice_type: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct DeleteVoiceRequest {
+    pub voice_type: String,
+    pub voice_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct VoiceGenerationInfo {
+    pub voice_id: String,
+    #[serde(default)]
+    pub description: serde_json::Value,
+    #[serde(default)]
+    pub created_time: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct VoiceListResponse {
     pub base_resp: BaseResponse,
@@ -113,12 +180,18 @@ pub struct VoiceListResponse {
     pub system_voice: Vec<VoiceInfo>,
     #[serde(default, deserialize_with = "null_to_default")]
     pub voice_cloning: Vec<VoiceInfo>,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub voice_generation: Vec<VoiceGenerationInfo>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct VoiceInfo {
     pub voice_name: String,
     pub voice_id: String,
+    #[serde(default)]
+    pub description: serde_json::Value,
+    #[serde(default)]
+    pub created_time: Option<String>,
 }
 
 // ============================================================
@@ -126,13 +199,29 @@ pub struct VoiceInfo {
 // ============================================================
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ClonePrompt {
+    pub prompt_audio: i64,
+    pub prompt_text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct VoiceCloneRequest {
     pub file_id: String,
     pub voice_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub clone_prompt: Option<ClonePrompt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language_boost: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub need_noise_reduction: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub need_volume_normalization: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aigc_watermark: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -140,6 +229,10 @@ pub struct VoiceCloneResponse {
     pub base_resp: BaseResponse,
     #[serde(default)]
     pub demo_audio: Option<String>,
+    #[serde(default)]
+    pub input_sensitive: Option<serde_json::Value>,
+    #[serde(default)]
+    pub extra_info: Option<ExtraInfo>,
 }
 
 // ============================================================
@@ -168,15 +261,34 @@ pub struct VoiceDesignResponse {
 // ============================================================
 
 #[derive(Debug, Clone, Serialize)]
+pub struct SubjectReference {
+    #[serde(rename = "type")]
+    pub reference_type: String,
+    pub image: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct VideoGenerationRequest {
     pub model: String,
     pub prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub first_frame_image: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_frame_image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject_reference: Option<Vec<SubjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolution: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_optimizer: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fast_pretreatment: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aigc_watermark: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -192,23 +304,52 @@ pub struct VideoQueryResponse {
     pub status: String,
     #[serde(default)]
     pub file_id: Option<String>,
+    #[serde(default)]
+    pub video_width: Option<i32>,
+    #[serde(default)]
+    pub video_height: Option<i32>,
 }
 
 /// Response from GET /v1/files/retrieve?file_id=
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileRetrieveResponse {
     pub base_resp: BaseResponse,
-    pub file: Option<FileDownloadInfo>,
+    pub file: Option<FileObject>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct FileDownloadInfo {
-    pub download_url: String,
+pub struct FileObject {
+    #[serde(default)]
+    pub download_url: Option<String>,
+    #[serde(default)]
+    pub file_id: Option<i64>,
+    #[serde(default)]
+    pub bytes: Option<i64>,
+    #[serde(default)]
+    pub created_at: Option<i64>,
+    #[serde(default)]
+    pub filename: Option<String>,
+    #[serde(default)]
+    pub purpose: Option<String>,
 }
 
 // ============================================================
 // Image Generation — POST /v1/image_generation
 // ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImageStyle {
+    pub style_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style_weight: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImageSubjectReference {
+    #[serde(rename = "type")]
+    pub reference_type: String,
+    pub image_file: String,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ImageGenerationRequest {
@@ -220,6 +361,20 @@ pub struct ImageGenerationRequest {
     pub n: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_optimizer: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aigc_watermark: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject_reference: Option<Vec<ImageSubjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<ImageStyle>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -233,6 +388,8 @@ pub struct ImageGenerationResponse {
 pub struct ImageData {
     #[serde(default, deserialize_with = "null_to_default")]
     pub image_urls: Vec<String>,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub image_base64: Vec<String>,
 }
 
 // ============================================================
@@ -250,9 +407,19 @@ pub struct MusicGenerationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cover_feature_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timbre: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aigc_watermark: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lyrics_optimizer: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_instrumental: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -284,6 +451,173 @@ pub struct UploadedFileInfo {
     pub file_id: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct FileDeleteRequest {
+    pub file_id: i64,
+    pub purpose: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FileDeleteResponse {
+    pub base_resp: BaseResponse,
+    #[serde(default)]
+    pub file_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FileListResponse {
+    pub base_resp: BaseResponse,
+    #[serde(default)]
+    pub files: Vec<FileObject>,
+}
+
+// ============================================================
+// Video Agent Task — POST /v1/video_template_generation
+// ============================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TextInput {
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MediaInput {
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VideoTemplateGenerationRequest {
+    pub template_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_inputs: Option<Vec<TextInput>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_inputs: Option<Vec<MediaInput>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct VideoTemplateGenerationResponse {
+    pub base_resp: BaseResponse,
+    #[serde(default)]
+    pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct VideoTemplateQueryResponse {
+    pub base_resp: BaseResponse,
+    #[serde(default)]
+    pub task_id: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub video_url: Option<String>,
+}
+
+// ============================================================
+// WebSocket TTS — wss://api.minimaxi.com/ws/v1/t2a_v2
+// ============================================================
+
+/// Client → Server: task_start event
+#[derive(Debug, Clone, Serialize)]
+pub struct WsTaskStart {
+    pub event: String,         // "task_start"
+    pub model: String,
+    pub voice_setting: WsVoiceSetting,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_setting: Option<WsAudioSetting>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language_boost: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pronunciation_dict: Option<PronunciationDict>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timbre_weights: Option<Vec<TimbreWeights>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_modify: Option<VoiceModify>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle_enable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continuous_sound: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WsVoiceSetting {
+    pub voice_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vol: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pitch: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emotion: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub english_normalization: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latex_read: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WsAudioSetting {
+    pub sample_rate: i32,
+    pub bitrate: i32,
+    pub format: String,
+    pub channel: i32,
+}
+
+/// Client → Server: task_continue event
+#[derive(Debug, Clone, Serialize)]
+pub struct WsTaskContinue {
+    pub event: String,  // "task_continue"
+    pub text: String,
+}
+
+/// Client → Server: task_finish event
+#[derive(Debug, Clone, Serialize)]
+pub struct WsTaskFinish {
+    pub event: String,  // "task_finish"
+}
+
+/// Server → Client: base response (shared fields)
+#[derive(Debug, Clone, Deserialize)]
+pub struct WsBaseResp {
+    #[serde(default)]
+    pub session_id: String,
+    #[serde(default)]
+    pub event: String,
+    #[serde(default)]
+    pub trace_id: String,
+    #[serde(default)]
+    pub base_resp: Option<serde_json::Value>,
+}
+
+/// Server → Client: task_continued event
+#[derive(Debug, Clone, Deserialize)]
+pub struct WsTaskContinued {
+    #[serde(default)]
+    pub session_id: String,
+    #[serde(default)]
+    pub event: String,
+    #[serde(default)]
+    pub trace_id: String,
+    #[serde(default)]
+    pub is_final: bool,
+    #[serde(default)]
+    pub data: Option<WsAudioChunk>,
+    #[serde(default)]
+    pub extra_info: Option<serde_json::Value>,
+    #[serde(default)]
+    pub base_resp: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WsAudioChunk {
+    #[serde(default)]
+    pub audio: String,  // hex-encoded audio
+}
+
 // ============================================================
 // Token Plan — GET /v1/token_plan/remains
 // ============================================================
@@ -299,7 +633,7 @@ pub struct TokenPlanResponse {
 // Chat — POST /v1/messages (Anthropic 兼容)
 // ============================================================
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
@@ -360,6 +694,8 @@ pub struct LyricsGenerationRequest {
     pub prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lyrics: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -380,6 +716,10 @@ pub struct LyricsGenerationResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct MusicCoverPreprocessRequest {
     pub audio_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -387,6 +727,14 @@ pub struct MusicCoverPreprocessResponse {
     pub base_resp: BaseResponse,
     #[serde(default)]
     pub cover_feature_id: Option<String>,
+    #[serde(default)]
+    pub formatted_lyrics: Option<String>,
+    #[serde(default)]
+    pub structure_result: Option<String>,
+    #[serde(default)]
+    pub audio_duration: Option<f64>,
+    #[serde(default)]
+    pub trace_id: Option<String>,
 }
 
 // ============================================================
@@ -430,11 +778,19 @@ pub struct RelatedSearch {
 pub struct T2AAsyncRequest {
     pub model: String,
     pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_file_id: Option<i64>,
     pub voice_setting: VoiceSetting,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_setting: Option<AsyncAudioSetting>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub pronunciation_dict: Option<PronunciationDict>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub language_boost: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_modify: Option<VoiceModify>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aigc_watermark: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -448,7 +804,7 @@ pub struct AsyncAudioSetting {
 #[derive(Debug, Clone, Deserialize)]
 pub struct T2AAsyncCreateResponse {
     pub base_resp: BaseResponse,
-    pub task_id: i64,
+    pub task_id: String,
     pub task_token: String,
     pub file_id: i64,
     #[serde(default)]
