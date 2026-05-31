@@ -44,7 +44,7 @@ export MINIMAX_API_KEY=your_key          # Global  (api.minimax.io)
 - **`.claude/`** — contains local settings and possibly API keys, use `.git/info/exclude` instead
 - **`.gitignore`** — may contain personal comments; put all ignore rules in `.git/info/exclude`
 - **`.env`** — never commit environment files
-- **Absolute paths** — never commit paths containing your username (`/Users/xxx/...`), use `/path/to/...` in docs
+- **Absolute paths** — never commit paths containing your username (`/Users/xxx/...`), use `项目路径/...` in docs
 - **mp3 / media files** — generated outputs should not be committed
 
 ### Local-only Ignore Rules
@@ -147,7 +147,7 @@ cargo run --bin minimax -- list_voices
 cargo run --bin minimax -- query_usage
 cargo run --bin minimax -- text_to_audio "你好"
 cargo run --bin minimax -- web_search "关键词"
-cargo run --bin minimax -- understand_image "描述" /path/to/image.png
+cargo run --bin minimax -- understand_image "描述" 项目路径/image.png
 ```
 
 ## User Preferences

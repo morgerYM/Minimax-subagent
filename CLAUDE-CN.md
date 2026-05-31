@@ -93,7 +93,7 @@ cargo run --bin minimax -- list_voices
 cargo run --bin minimax -- query_usage
 cargo run --bin minimax -- text_to_audio "你好"
 cargo run --bin minimax -- web_search "关键词"
-cargo run --bin minimax -- understand_image "描述" /path/to/image.png
+cargo run --bin minimax -- understand_image "描述" 项目路径/image.png
 ```
 
 ## 用户偏好
