@@ -2,75 +2,135 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Development Preferences
-
-### Programming Languages
-- **Primary**: Rust
-- **Secondary**: Python (use `uv` package manager)
-- **Python Version**: 3.13 (when creating new Python projects)
-
-### Code Style
-- Use **React-style** architecture (component-based, hooks mindset)
-
-### Network Operations
-- **Primary**: `playwright`, `agent-browser` for web information retrieval
-
 ## Project Overview
 
-`minimax_agent` is a Rust-based CLI agent that uses MiniMax's API to provide AI capabilities via MCP (Model Context Protocol). The project is currently in early development.
+`minimax_agent` is a Rust-based CLI agent that uses MiniMax's API to provide AI capabilities via MCP (Model Context Protocol). It wraps MiniMax's text, speech, video, image, music, and file management APIs as MCP tools.
 
-## Current State
+**Implemented MCP tools:**
+- `text_to_audio` / `text_to_audio_stream` / `generate_audio_async` / `query_audio_task` — TTS
+- `list_voices` / `voice_clone` / `voice_design` / `delete_voice` — voice management
+- `generate_image` / `understand_image` — image
+- `generate_video` / `generate_video_agent` / `query_video` / `query_video_agent` — video
+- `generate_music` / `generate_music_cover` / `generate_lyrics` — music
+- `chat` / `web_search` — text
+- `query_usage` — account
+- `list_files` / `retrieve_file` / `delete_file` — file management
 
-- `MiniMax_API_Reference.md` - API documentation for MiniMax platform
-- No Rust project structure yet (no `Cargo.toml`)
+## Development Setup
 
-## Development Goals
+### Environment Variables
 
-Build a Rust MCP Server CLI that provides MiniMax tools:
-- Text generation and chat
-- Speech synthesis (T2A)
-- Video generation
-- Image generation
-- Music generation
-- File management
+```bash
+export MINIMAX_API_KEY=your_key          # China region (api.minimaxi.com)
+export MINIMAX_API_KEY=your_key          # Global  (api.minimax.io)
+```
 
-## MiniMax API Reference
+### Rust Toolchain
 
-**Base URLs:**
-- China: `https://api.minimaxi.com`
-- International: `https://api.minimax.io`
+- **Primary**: Rust
+- **Build**: `cargo build --release` — the MCP server runs from `target/release/minimax-mcp`
+- **Debug binary**: `cargo build` → `target/debug/minimax-mcp`
 
-**API Endpoints:**
-- Text: `POST /v1/chat/completions` (OpenAI compatible)
-- Anthropic: `POST /v1/messages` (Anthropic compatible)
-- Speech: `POST /v1/t2a_v2`
-- Video: `POST /v1/video_generation`
-- Image: `POST /v1/image_generation`
-- Music: `POST /v1/music_generation`
-- File: `POST /v1/files/upload`, `GET /v1/files`
+### Adding the MCP Server to Claude Code
 
-**Environment Variables:**
-- `MINIMAX_API_KEY` - API key for authentication
+- **Do NOT enter an API key** — the server reads `MINIMAX_API_KEY` from the shell environment automatically
+- Add via binary path: `/Users/yyurk/my_project/minimax_agent/target/release/minimax-mcp`
+- After code changes: `pkill -f minimax-mcp`, then restart Claude Code
 
-## MCP Server Transport
+## Architecture
 
-- **Stdio** (primary) - for Claude Desktop integration
-- **SSE** - HTTP server-sent events support
+```
+src/
+├── bin/main_cli.rs     # CLI entry point (./minimax <command>)
+├── client.rs           # MiniMaxClient (API calls)
+├── consts.rs           # API endpoints, constants
+├── error.rs            # MiniMaxError
+├── lib.rs              # Library root, re-exports types
+├── mcp_params.rs      # MCP tool parameters (serde)
+├── types.rs            # Request/response types
+├── utils.rs            # process_image_url, helpers
+├── ws_client.rs        # WebSocket client (streaming TTS)
+└── tools/
+    ├── chat.rs         # chat, web_search
+    ├── files.rs        # list/retrieve/delete files
+    ├── image.rs        # generate_image, understand_image
+    ├── music.rs        # generate_music, generate_music_cover, generate_lyrics
+    ├── search.rs       # web_search
+    ├── tts.rs          # text_to_audio, voice_clone, voice_design, etc.
+    ├── usage.rs       # query_usage
+    └── video.rs        # generate_video, generate_video_agent
+```
 
-## Related Projects
+### MCP Transport
 
-MiniMax Rust CLI (separate project): `/Users/yyurk/github_project/minimax-code/`
+- **Stdio** (primary) — for Claude Desktop integration
+- **SSE** — HTTP server-sent events (when configured)
 
-##git 保存更改
-在完成计划，并修改完成后，要存档，避免反复修改。保证不会丢失
+## Development Guide
 
-## error[备注]
-当前文件夹minimax agent 与 minimax-code没有任何关系
+### Rust Compilation Rules
 
-### Rust 编译陷阱
-- MCP 服务器运行时使用 `target/release/minimax-mcp`，修改代码后必须 `cargo build --release` 而非 `cargo build`
-- 在 tool handler 中，`params.xxx` 字段在构造 `req` 时会被 move，之后只能通过 `req.xxx` 访问对应值（如 `req.text`、`req.prompt`、`req.audio_setting.format`），不可再用 `params.xxx`
-- MCP 服务器进程需要 kill 后重启：`pkill -f minimax-mcp`，之后退出并重进 Claude Code 才会重新加载
-- `voice_design` 和 `voice_clone` 需要较大账户余额，不建议使用，否则报 API error 1008: insufficient balance
+In tool handlers, `params.xxx` fields are moved when constructing the `req` object. After that, access the value via `req.xxx` (not `params.xxx`). Example:
 
+```rust
+// params.text is moved into req here
+let req = T2ARequest { text: params.text, .. };
+// use req.text, not params.text
+```
 
+### API Authentication
+
+- Coding Plan endpoints (`/v1/coding_plan/search`, `/v1/coding_plan/vlm`) require header: `MM-API-Source: Minimax-MCP`
+- API key region must match the base URL:
+  - China: `https://api.minimaxi.com`
+  - Global: `https://api.minimax.io`
+- Image understanding API (`understand_image`) requires base64 data URL format — use `utils::process_image_url()` for local files
+
+### Testing
+
+```bash
+cargo run --bin minimax -- list_voices
+cargo run --bin minimax -- query_usage
+cargo run --bin minimax -- text_to_audio "你好"
+cargo run --bin minimax -- web_search "关键词"
+cargo run --bin minimax -- understand_image "描述" /path/to/image.png
+```
+
+## User Preferences
+
+### Preferred Voices
+
+**Female (priority):**
+- `Portuguese_LovelyLady` — Lovely Lady
+- `female-yujie` — 御姐音色
+- `Japanese_KindLady` — Kind Lady
+- `Japanese_CalmLady` — Calm Lady
+
+**Male:**
+- `Japanese_GentleButler` — Gentle Butler
+
+### Audio Playback
+
+After generating audio, play with:
+
+```bash
+afplay <file_path>
+```
+
+## Appendix
+
+### API Base URLs
+
+| Region   | Base URL              |
+|----------|-----------------------|
+| China    | `https://api.minimaxi.com` |
+| Global   | `https://api.minimax.io` |
+
+### Known Issues
+
+- `/v1/get_voice` rejects empty JSON — always pass `voice_type` parameter; `list_voices` defaults to `"system"`
+- `voice_design` and `voice_clone` require sufficient account balance; insufficient balance returns API error 1008
+
+### Related Projects
+
+- MiniMax Rust CLI (separate project): `/Users/yyurk/github_project/minimax-code/` — **not related** to this repo
