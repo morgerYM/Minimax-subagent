@@ -115,6 +115,16 @@ src/
     └── video.rs        # generate_video, generate_video_agent
 ```
 
+## Default Models (Latest)
+
+| Capability | Default Model | Notes |
+|------------|---------------|-------|
+| TTS (sync/stream/async) | `speech-2.8-hd` | 9 emotions: happy/sad/angry/fearful/disgusted/surprised/calm/fluent/whisper |
+| Video | `MiniMax-Hailuo-2.3` | 02 model adds 6/10s duration + 768P/1080P resolution |
+| Image | `image-01` | `image-01-live` adds style_type (cartoon/vitality/etc.) |
+| Music | `music-2.6` | Supports `is_instrumental` and `lyrics_optimizer` |
+| Chat | `MiniMax-M3` | 1M context window, max 16,384 output tokens |
+
 ### MCP Transport
 
 - **Stdio** (primary) — for Claude Desktop integration

@@ -31,9 +31,9 @@ async fn main() {
         eprintln!("Commands:");
         eprintln!("  list_voices               - 列出所有音色（配合 grep 使用）");
         eprintln!("  query_usage              - 查询账户用量");
-        eprintln!("  text_to_audio <text> [--voice v] [--speed 0.5-2.0] [--pitch -12~12] [--emotion e] - 文字转语音（自动播放）");
-        eprintln!("  text_to_audio_stream <text> [--voice v] [--speed 0.5-2.0] ... - 流式 TTS（WebSocket，低延迟）");
-        eprintln!("  generate_audio_async <text> [--voice v] ... - 异步 TTS（长文本，最长 5 万字符）");
+        eprintln!("  text_to_audio <text> [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] - 文字转语音（自动播放）");
+        eprintln!("  text_to_audio_stream <text> [--voice v] [--speed 0.5-2.0] [--vol 0-10] ... - 流式 TTS（WebSocket，低延迟）");
+        eprintln!("  generate_audio_async <text> [--voice v] [--vol 0-10] ... - 异步 TTS（长文本，最长 5 万字符）");
         eprintln!("  query_audio_task <task_id> - 查询异步 TTS 任务并下载播放");
         eprintln!("  web_search <query>       - 网络搜索");
         eprintln!("  understand_image <prompt> <image_path> - 图片理解");
@@ -141,10 +141,11 @@ async fn main() {
         }
 
         "text_to_audio" => {
-            // 简单参数解析：text --voice xxx --speed 1.5 --pitch 0 --emotion happy
+            // 简单参数解析：text --voice xxx --speed 1.5 --vol 1.0 --pitch 0 --emotion happy
             // 默认音色: female-yujie
             let mut voice_id = "female-yujie".to_string();
             let mut speed: Option<f64> = None;
+            let mut vol: Option<f64> = None;
             let mut pitch: Option<i32> = None;
             let mut emotion: Option<String> = None;
             let mut text: String = String::new();
@@ -158,6 +159,9 @@ async fn main() {
                     i += 2;
                 } else if arg == "--speed" && i + 1 < args.len() {
                     speed = args[i + 1].parse().ok();
+                    i += 2;
+                } else if arg == "--vol" && i + 1 < args.len() {
+                    vol = args[i + 1].parse().ok();
                     i += 2;
                 } else if arg == "--pitch" && i + 1 < args.len() {
                     pitch = args[i + 1].parse().ok();
@@ -182,7 +186,7 @@ async fn main() {
             }
 
             if text.is_empty() {
-                eprintln!("Usage: text_to_audio <text> [--voice voice_id] [--speed 0.5-2.0] [--pitch -12~12] [--emotion happy|sad|angry|...]");
+                eprintln!("Usage: text_to_audio <text> [--voice voice_id] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion happy|sad|angry|calm|fluent|whisper|...]");
                 exit(1);
             }
 
@@ -194,7 +198,7 @@ async fn main() {
                 voice_setting: VoiceSetting {
                     voice_id,
                     speed,
-                    vol: None,
+                    vol,
                     pitch,
                     emotion,
                     text_normalization: None,
@@ -765,6 +769,7 @@ async fn main() {
             let mut voice_id = "female-yujie".to_string();
             let mut model = "speech-2.8-hd".to_string();
             let mut speed: Option<f64> = None;
+            let mut vol: Option<f64> = None;
             let mut pitch: Option<i32> = None;
             let mut emotion: Option<String> = None;
             let mut sample_rate = 32000;
@@ -781,6 +786,7 @@ async fn main() {
                 if arg == "--voice" && i + 1 < args.len() { voice_id = args[i+1].clone(); i += 2; }
                 else if arg == "--model" && i + 1 < args.len() { model = args[i+1].clone(); i += 2; }
                 else if arg == "--speed" && i + 1 < args.len() { speed = args[i+1].parse().ok(); i += 2; }
+                else if arg == "--vol" && i + 1 < args.len() { vol = args[i+1].parse().ok(); i += 2; }
                 else if arg == "--pitch" && i + 1 < args.len() { pitch = args[i+1].parse().ok(); i += 2; }
                 else if arg == "--emotion" && i + 1 < args.len() { emotion = Some(args[i+1].clone()); i += 2; }
                 else if arg == "--sample-rate" && i + 1 < args.len() { sample_rate = args[i+1].parse().unwrap_or(32000); i += 2; }
@@ -794,7 +800,7 @@ async fn main() {
             }
 
             if text.is_empty() {
-                eprintln!("Usage: text_to_audio_stream [--voice v] [--speed 0.5-2.0] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--continuous-sound] <text>");
+                eprintln!("Usage: text_to_audio_stream [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--continuous-sound] <text>");
                 exit(1);
             }
 
@@ -804,7 +810,7 @@ async fn main() {
                 voice_setting: WsVoiceSetting {
                     voice_id,
                     speed,
-                    vol: None,
+                    vol,
                     pitch,
                     emotion,
                     english_normalization: None,
@@ -852,6 +858,7 @@ async fn main() {
             let mut voice_id = "female-yujie".to_string();
             let mut model = "speech-2.8-hd".to_string();
             let mut speed: Option<f64> = None;
+            let mut vol: Option<f64> = None;
             let mut pitch: Option<i32> = None;
             let mut emotion: Option<String> = None;
             let mut sample_rate = 32000;
@@ -868,6 +875,7 @@ async fn main() {
                 if arg == "--voice" && i + 1 < args.len() { voice_id = args[i+1].clone(); i += 2; }
                 else if arg == "--model" && i + 1 < args.len() { model = args[i+1].clone(); i += 2; }
                 else if arg == "--speed" && i + 1 < args.len() { speed = args[i+1].parse().ok(); i += 2; }
+                else if arg == "--vol" && i + 1 < args.len() { vol = args[i+1].parse().ok(); i += 2; }
                 else if arg == "--pitch" && i + 1 < args.len() { pitch = args[i+1].parse().ok(); i += 2; }
                 else if arg == "--emotion" && i + 1 < args.len() { emotion = Some(args[i+1].clone()); i += 2; }
                 else if arg == "--sample-rate" && i + 1 < args.len() { sample_rate = args[i+1].parse().unwrap_or(32000); i += 2; }
@@ -881,7 +889,7 @@ async fn main() {
             }
 
             if text.is_empty() && text_file_id.is_none() {
-                eprintln!("Usage: generate_audio_async [--voice v] [--speed 0.5-2.0] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--text-file-id id] <text>");
+                eprintln!("Usage: generate_audio_async [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--text-file-id id] <text>");
                 exit(1);
             }
 
@@ -892,7 +900,7 @@ async fn main() {
                 voice_setting: VoiceSetting {
                     voice_id,
                     speed,
-                    vol: None,
+                    vol,
                     pitch,
                     emotion,
                     text_normalization: None,

@@ -14,13 +14,13 @@ pub struct TextToAudioParams {
     pub vol: Option<f64>,
     #[schemars(description = "音调 -12 到 12，默认 0")]
     pub pitch: Option<i32>,
-    #[schemars(description = "情感: happy/sad/angry/fearful/disgusted/surprised/neutral")]
+    #[schemars(description = "情感: happy/sad/angry/fearful/disgusted/surprised/calm/fluent/whisper。fluent/whisper 仅 speech-2.6-turbo/hd 模型生效，speech-2.8-hd/turbo 不支持 whisper")]
     pub emotion: Option<String>,
     #[schemars(description = "采样率: 8000/16000/22050/24000/32000/44100，默认 32000")]
     pub sample_rate: Option<i32>,
     #[schemars(description = "比特率: 32000/64000/128000/256000，默认 128000")]
     pub bitrate: Option<i32>,
-    #[schemars(description = "音频格式: mp3/pcm/flac，默认 mp3")]
+    #[schemars(description = "音频格式: mp3/pcm/flac/wav/pcmu_raw/pcmu_wav/opus，默认 mp3")]
     pub format: Option<String>,
     #[schemars(description = "输出目录（可选）。提供时保存文件到此目录")]
     pub output_directory: Option<String>,

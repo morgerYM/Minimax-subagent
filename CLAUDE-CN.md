@@ -66,6 +66,16 @@ src/
 - **Stdio**（主要）— 用于 Claude Desktop 集成
 - **SSE** — HTTP Server-Sent Events（配置后启用）
 
+## 默认模型（最新）
+
+| 能力 | 默认模型 | 说明 |
+|------|----------|------|
+| 语音合成（同步/流式/异步） | `speech-2.8-hd` | 9 种 emotion：happy/sad/angry/fearful/disgusted/surprised/calm/fluent/whisper |
+| 视频生成 | `MiniMax-Hailuo-2.3` | 02 模型支持 6/10 秒时长 + 768P/1080P 分辨率 |
+| 图像生成 | `image-01` | `image-01-live` 支持 style_type（cartoon/vitality 等） |
+| 音乐生成 | `music-2.6` | 支持 `is_instrumental` 和 `lyrics_optimizer` |
+| 文本对话 | `MiniMax-M3` | 1M 上下文窗口，最大输出 16,384 tokens |
+
 ## 开发指南
 
 ### Rust 编译规则
