@@ -299,7 +299,7 @@ async fn main() {
         }
 
         "chat" => {
-            let mut model = "MiniMax-M2.7".to_string();
+            let mut model = "MiniMax-M3".to_string();
             let mut system: Option<String> = None;
             let mut max_tokens = 2048;
             let mut temperature = 0.7;

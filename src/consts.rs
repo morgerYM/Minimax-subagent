@@ -27,7 +27,7 @@ pub const DEFAULT_IMAGE_MODEL: &str = "image-01";
 pub const DEFAULT_MUSIC_MODEL: &str = "music-2.6";
 
 // Chat models
-pub const DEFAULT_CHAT_MODEL: &str = "MiniMax-M2.7";
+pub const DEFAULT_CHAT_MODEL: &str = "MiniMax-M3";
 
 // Polling for async tasks
 pub const MAX_POLL_RETRIES: i32 = 30;

@@ -156,7 +156,7 @@ pub struct GenerateMusicParams {
 pub struct ChatParams {
     #[schemars(description = "用户消息")]
     pub prompt: String,
-    #[schemars(description = "模型名称，默认 MiniMax-M2.7。支持 coding-plan-vlm, coding-plan-search, MiniMax-M2.5 等")]
+    #[schemars(description = "模型名称，默认 MiniMax-M3（支持 1M 上下文）。支持 coding-plan-vlm, coding-plan-search, MiniMax-M2.5 等")]
     pub model: Option<String>,
     #[schemars(description = "系统提示词")]
     pub system: Option<String>,
