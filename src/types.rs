@@ -206,7 +206,7 @@ pub struct ClonePrompt {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct VoiceCloneRequest {
-    pub file_id: String,
+    pub file_id: i64,
     pub voice_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clone_prompt: Option<ClonePrompt>,
@@ -448,7 +448,7 @@ pub struct FileUploadResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UploadedFileInfo {
-    pub file_id: String,
+    pub file_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
