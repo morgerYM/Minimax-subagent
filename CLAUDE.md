@@ -37,6 +37,28 @@ export MINIMAX_API_KEY=your_key          # Global  (api.minimax.io)
 - Add via binary path: `/path/to/minimax_agent/target/release/minimax-mcp`
 - After code changes: `pkill -f minimax-mcp`, then restart Claude Code
 
+### Syncing Official API Docs (docs/)
+
+The `docs/` directory is a cache of the official MiniMax API reference. MiniMax publishes an LLM-friendly docs index at `https://platform.minimaxi.com/docs/llms.txt` that lists every page and its URL.
+
+Use `scripts/sync_docs.sh` to refresh `docs/` automatically — **don't ask the user to paste updated docs**:
+
+```bash
+./scripts/sync_docs.sh                  # sync all project-relevant docs (default)
+./scripts/sync_docs.sh all              # sync every page from llms.txt
+./scripts/sync_docs.sh --list           # list available slugs
+./scripts/sync_docs.sh <slug> [<slug>]  # sync specific docs only
+# e.g. ./scripts/sync_docs.sh speech-t2a-http video-generation-s2v
+```
+
+When to sync:
+
+- **Before debugging an API error** you can't recognize — the parameter set, error code, or endpoint may have changed
+- **Before adding a new MCP tool** — check what params/endpoints the official docs currently expose
+- **Periodically (e.g. monthly)** to keep the cache current
+
+The slug list inside the script (`PROJECT_SLUGS`) is the project's source-of-truth for "which official docs we care about." Update it when adding/removing a tool in `src/tools/`.
+
 ## Git & Publishing
 
 ### Privacy Rules (DO NOT COMMIT)
