@@ -77,14 +77,6 @@ git filter-branch -f --env-filter '
 rm -rf .git/refs/original/
 ```
 
-### First Push to New Remote
-
-```bash
-git remote add origin https://github.com/user/repo.git
-git branch -M main
-git push -u origin main
-```
-
 ### Gotchas
 
 - `git filter-branch` creates backup refs in `.git/refs/original/` — delete them and run `git gc` to avoid duplicate commits
@@ -159,6 +151,13 @@ cargo run --bin minimax -- text_to_audio "你好"
 cargo run --bin minimax -- web_search "关键词"
 cargo run --bin minimax -- understand_image "描述" 项目路径/image.png
 ```
+
+## Multi-Agent Collaboration
+
+When multiple agents / sessions are working on the same repo:
+
+- **Post-edit skill review**: After a code change is complete, re-read the relevant `SKILL.md` (e.g. `minimax-mcp SKILL.md`) and verify the documented tool signatures / examples still match the implementation. Update the skill doc if parameters, defaults, or behaviors drifted.
+- **Scoped git commits**: Each `git commit` should cover only the change scope of the current task. Don't sweep unrelated edits (linter fixes, linter-driven CLAUDE.md rewrites, downloads/, generated files) into the same commit. Use `git add <file>` explicitly, or `git checkout -- <file>` to drop unwanted changes before committing.
 
 ## User Preferences
 
