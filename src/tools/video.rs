@@ -18,12 +18,29 @@ pub async fn handle_generate_video(
     client: &MiniMaxClient,
     params: GenerateVideoParams,
 ) -> Result<CallToolResult, ErrorData> {
+    let subject_reference = params.subject_reference.map(|vals| {
+        vals.into_iter()
+            .filter_map(|v| {
+                let reference_type = v.get("type")?.as_str()?.to_string();
+                let image = v.get("image")?
+                    .as_array()?
+                    .iter()
+                    .filter_map(|s| s.as_str().map(String::from))
+                    .collect::<Vec<_>>();
+                Some(SubjectReference {
+                    reference_type,
+                    image,
+                })
+            })
+            .collect()
+    });
+
     let req = VideoGenerationRequest {
         model: params.model.unwrap_or_else(|| DEFAULT_VIDEO_MODEL.to_string()),
         prompt: params.prompt,
         first_frame_image: params.first_frame_image,
         last_frame_image: params.last_frame_image,
-        subject_reference: None,
+        subject_reference,
         duration: params.duration,
         resolution: params.resolution,
         prompt_optimizer: params.prompt_optimizer,

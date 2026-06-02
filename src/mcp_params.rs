@@ -90,6 +90,8 @@ pub struct GenerateVideoParams {
     pub aigc_watermark: Option<bool>,
     #[schemars(description = "回调 URL（可选），用于接收异步状态通知")]
     pub callback_url: Option<String>,
+    #[schemars(description = "主体参考（JSON 数组），用于主体参考视频生成。如 [{\"type\":\"character\",\"image\":[\"https://...\"]}]，type 支持 character/object/environment")]
+    pub subject_reference: Option<Vec<serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]

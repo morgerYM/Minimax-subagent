@@ -501,6 +501,7 @@ async fn main() {
             let mut duration: Option<i32> = None;
             let mut first_frame_image: Option<String> = None;
             let mut last_frame_image: Option<String> = None;
+            let mut subject_ref_json: Option<String> = None;
             let mut prompt = String::new();
 
             let mut i = 2;
@@ -524,6 +525,9 @@ async fn main() {
                 } else if arg == "--last-frame" && i + 1 < args.len() {
                     last_frame_image = Some(args[i + 1].clone());
                     i += 2;
+                } else if arg == "--subject-reference" && i + 1 < args.len() {
+                    subject_ref_json = Some(args[i + 1].clone());
+                    i += 2;
                 } else if arg.starts_with("--") {
                     eprintln!("Unknown option: {}", arg);
                     exit(1);
@@ -535,16 +539,35 @@ async fn main() {
             }
 
             if prompt.is_empty() {
-                eprintln!("Usage: generate_video [--model m] [--wait] [--resolution 768P|1080P] [--duration 6|10] [--first-frame url] [--last-frame url] <prompt>");
+                eprintln!("Usage: generate_video [--model m] [--wait] [--resolution 768P|1080P] [--duration 6|10] [--first-frame url] [--last-frame url] [--subject-reference 'json'] <prompt>");
                 exit(1);
             }
+
+            // 解析 --subject-reference JSON
+            let subject_reference = subject_ref_json.and_then(|s| {
+                let v: serde_json::Value = serde_json::from_str(&s).ok()?;
+                let arr = v.as_array()?;
+                Some(
+                    arr.iter()
+                        .filter_map(|item| {
+                            let reference_type = item.get("type")?.as_str()?.to_string();
+                            let image = item.get("image")?
+                                .as_array()?
+                                .iter()
+                                .filter_map(|s| s.as_str().map(String::from))
+                                .collect();
+                            Some(SubjectReference { reference_type, image })
+                        })
+                        .collect::<Vec<_>>()
+                )
+            });
 
             let req = VideoGenerationRequest {
                 model,
                 prompt,
                 first_frame_image,
                 last_frame_image,
-                subject_reference: None,
+                subject_reference,
                 duration,
                 resolution,
                 prompt_optimizer: None,
@@ -712,7 +735,12 @@ async fn main() {
                 voice_id: voice_id.clone(),
                 clone_prompt: None,
                 text: text.map(String::from),
-                model: None,
+                // 当传 text 时必须传 model (官方要求)
+                model: if text.is_some() {
+                    Some("speech-2.8-hd".to_string())
+                } else {
+                    None
+                },
                 language_boost: None,
                 need_noise_reduction: None,
                 need_volume_normalization: None,

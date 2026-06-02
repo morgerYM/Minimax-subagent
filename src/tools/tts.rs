@@ -143,12 +143,18 @@ pub async fn handle_voice_clone(
             .file_id
     };
 
+    // 当传 text 时必须传 model (官方要求)；不传 text 时也不需要 model
+    let model = if params.text.is_some() {
+        Some(DEFAULT_TTS_MODEL.to_string())
+    } else {
+        None
+    };
     let req = VoiceCloneRequest {
         file_id,
         voice_id: params.voice_id,
         clone_prompt: None,
         text: params.text,
-        model: None,
+        model,
         language_boost: params.language_boost,
         need_noise_reduction: params.need_noise_reduction,
         need_volume_normalization: params.need_volume_normalization,
