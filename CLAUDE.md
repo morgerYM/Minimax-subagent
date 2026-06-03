@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`minimax_agent` is a Rust-based CLI agent that uses MiniMax's API to provide AI capabilities via MCP (Model Context Protocol). It wraps MiniMax's text, speech, video, image, music, and file management APIs as MCP tools.
+`Minimax-mcp` is a Rust-based CLI agent that uses MiniMax's API to provide AI capabilities via MCP (Model Context Protocol). It wraps MiniMax's text, speech, video, image, music, and file management APIs as MCP tools.
 
 **Implemented MCP tools:**
 - `text_to_audio` / `text_to_audio_stream` / `generate_audio_async` / `query_audio_task` — TTS
@@ -28,14 +28,14 @@ export MINIMAX_API_KEY=your_key          # Global  (api.minimax.io)
 ### Rust Toolchain
 
 - **Primary**: Rust
-- **Build**: `cargo build --release` — the MCP server runs from `target/release/minimax-mcp`
-- **Debug binary**: `cargo build` → `target/debug/minimax-mcp`
+- **Build**: `cargo build --release` — the MCP server runs from `target/release/Minimax-mcp`
+- **Debug binary**: `cargo build` → `target/debug/Minimax-mcp`
 
 ### Adding the MCP Server to Claude Code
 
 - **Do NOT enter an API key** — the server reads `MINIMAX_API_KEY` from the shell environment automatically
-- Add via binary path: `/path/to/minimax_agent/target/release/minimax-mcp`
-- After code changes: `pkill -f minimax-mcp`, then restart Claude Code
+- Add via binary path: `/path/to/Minimax-mcp/target/release/Minimax-mcp`
+- After code changes: `pkill -f Minimax-mcp`, then restart Claude Code
 
 ### Syncing Official API Docs (docs/)
 
@@ -178,7 +178,7 @@ cargo run --bin minimax -- understand_image "描述" 项目路径/image.png
 
 When multiple agents / sessions are working on the same repo:
 
-- **Post-edit skill review**: After a code change is complete, re-read the relevant `SKILL.md` (e.g. `minimax-mcp SKILL.md`) and verify the documented tool signatures / examples still match the implementation. Update the skill doc if parameters, defaults, or behaviors drifted.
+- **Post-edit skill review**: After a code change is complete, re-read the relevant `SKILL.md` (e.g. `Minimax-mcp SKILL.md`) and verify the documented tool signatures / examples still match the implementation. Update the skill doc if parameters, defaults, or behaviors drifted.
 - **Scoped git commits**: Each `git commit` should cover only the change scope of the current task. Don't sweep unrelated edits (linter fixes, linter-driven CLAUDE.md rewrites, downloads/, generated files) into the same commit. Use `git add <file>` explicitly, or `git checkout -- <file>` to drop unwanted changes before committing.
 
 ## User Preferences

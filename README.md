@@ -51,7 +51,7 @@ source ~/.zshrc
 cargo build --release
 ```
 
-二进制文件位置：`target/release/minimax-mcp`
+二进制文件位置：`target/release/Minimax-mcp`
 
 ### 3. CLI 测试
 
@@ -59,7 +59,7 @@ cargo build --release
 source ~/.zshrc
 
 # 测试 MCP 服务器（发送 JSON-RPC 消息）
-./target/release/minimax-mcp
+./target/release/Minimax-mcp
 ```
 
 交互式测试需要发送 JSON-RPC 消息。例如，使用 `socat` 或 `nc`：
@@ -99,7 +99,7 @@ claude mcp list
 {
   "mcpServers": {
     "minimax": {
-      "command": "项目路径/target/release/minimax-mcp"
+      "command": "项目路径/target/release/Minimax-mcp"
     }
   }
 }

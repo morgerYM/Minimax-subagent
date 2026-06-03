@@ -1,8 +1,8 @@
 [package]
-name = "minimax-api"
+name = "Minimax-mcp"
 version = "0.1.0"
 edition = "2021"
-description = "Rust library for MiniMax API — video, speech, image, music generation"
+description = "Rust MCP server and library for MiniMax API — video, speech, image, music generation"
 license = "MIT"
 
 [lib]
@@ -10,7 +10,7 @@ name = "minimax_api"
 path = "src/lib.rs"
 
 [[bin]]
-name = "minimax-mcp"
+name = "Minimax-mcp"
 path = "src/main.rs"
 
 [[bin]]

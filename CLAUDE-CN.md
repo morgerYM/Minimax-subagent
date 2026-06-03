@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-`minimax_agent` 是一个基于 Rust 的 CLI 工具，通过 MCP（Model Context Protocol）提供 MiniMax API 能力。封装了 MiniMax 的文本对话、语音合成、视频生成、图像生成、音乐生成和文件管理接口。
+`Minimax-mcp` 是一个基于 Rust 的 CLI 工具，通过 MCP（Model Context Protocol）提供 MiniMax API 能力。封装了 MiniMax 的文本对话、语音合成、视频生成、图像生成、音乐生成和文件管理接口。
 
 **已实现的 MCP 工具：**
 - `text_to_audio` / `text_to_audio_stream` / `generate_audio_async` / `query_audio_task` — 语音合成
@@ -28,14 +28,14 @@ export MINIMAX_API_KEY=your_key          # 国际区 (api.minimax.io)
 ### Rust 工具链
 
 - **主要语言**：Rust
-- **编译**：`cargo build --release` — MCP server 从 `target/release/minimax-mcp` 运行
-- **调试构建**：`cargo build` → `target/debug/minimax-mcp`
+- **编译**：`cargo build --release` — MCP server 从 `target/release/Minimax-mcp` 运行
+- **调试构建**：`cargo build` → `target/debug/Minimax-mcp`
 
 ### 添加 MCP Server 到 Claude Code
 
 - **无需输入 API key** — server 启动时自动从 shell 环境变量读取 `MINIMAX_API_KEY`
-- 通过二进制路径添加：`/path/to/minimax_agent/target/release/minimax-mcp`
-- 代码修改后需重启：先执行 `pkill -f minimax-mcp`，然后退出并重新进入 Claude Code
+- 通过二进制路径添加：`/path/to/Minimax-mcp/target/release/Minimax-mcp`
+- 代码修改后需重启：先执行 `pkill -f Minimax-mcp`，然后退出并重新进入 Claude Code
 
 ## 架构
 
