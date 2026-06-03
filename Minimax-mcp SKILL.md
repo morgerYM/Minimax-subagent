@@ -1,5 +1,5 @@
 ---
-name: minimax-mcp
+name: Minimax-mcp
 description: MiniMax MCP tools for text/speech/video/image/music generation. Triggers: "MiniMax", "MCP tools", "generate speech/video/image/music", "text to audio", "voice clone", "TTS", "voice design"
 metadata:
   type: skill
