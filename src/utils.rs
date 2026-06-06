@@ -141,13 +141,9 @@ async fn download_image(url: &str) -> Result<String, MiniMaxError> {
 /// Save hex audio to $TMPDIR/minimax/ and play via afplay.
 /// Silently ignores playback errors.
 pub fn save_and_play_audio(hex: &str, tool: &str) -> Result<PathBuf, MiniMaxError> {
-    let tmpdir = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".to_string());
-    let savedir = PathBuf::from(tmpdir).join("minimax");
-    std::fs::create_dir_all(&savedir)?;
-
     let bytes = decode_hex_audio(hex)?;
     let filename = build_filename(tool, "audio", "mp3");
-    let filepath = savedir.join(filename);
+    let filepath = PathBuf::from(&filename);
 
     std::fs::write(&filepath, &bytes)?;
 
@@ -162,12 +158,8 @@ pub fn save_and_play_audio(hex: &str, tool: &str) -> Result<PathBuf, MiniMaxErro
 
 /// Save raw bytes to $TMPDIR/minimax/ and play via afplay.
 pub fn save_and_play_audio_bytes(bytes: &[u8], prefix: &str) -> Result<PathBuf, MiniMaxError> {
-    let tmpdir = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".to_string());
-    let savedir = PathBuf::from(tmpdir).join("minimax");
-    std::fs::create_dir_all(&savedir)?;
-
     let filename = build_filename(prefix, "audio", "mp3");
-    let filepath = savedir.join(filename);
+    let filepath = PathBuf::from(&filename);
 
     std::fs::write(&filepath, bytes)?;
 
@@ -179,13 +171,9 @@ pub fn save_and_play_audio_bytes(bytes: &[u8], prefix: &str) -> Result<PathBuf, 
     Ok(filepath)
 }
 
-/// Download image to $TMPDIR/minimax/ and open with `open`.
+/// Download image to current directory and open with `open`.
 pub async fn download_and_open_image(url: &str, tool: &str) -> Result<PathBuf, MiniMaxError> {
     use std::time::Duration;
-
-    let tmpdir = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".to_string());
-    let savedir = PathBuf::from(tmpdir).join("minimax");
-    std::fs::create_dir_all(&savedir)?;
 
     let client = Client::builder()
         .timeout(Duration::from_secs(30))
@@ -218,7 +206,7 @@ pub async fn download_and_open_image(url: &str, tool: &str) -> Result<PathBuf, M
         "jpg"
     };
     let filename = build_filename(tool, "image", ext);
-    let filepath = savedir.join(filename);
+    let filepath = PathBuf::from(&filename);
 
     tokio::fs::write(&filepath, &bytes).await?;
 

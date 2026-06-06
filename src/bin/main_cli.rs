@@ -31,7 +31,7 @@ async fn main() {
         eprintln!("Commands:");
         eprintln!("  list_voices [voice_type] - 列出音色（voice_type: all/system/voice_cloning/voice_generation，默认 all）");
         eprintln!("  query_usage              - 查询账户用量");
-        eprintln!("  text_to_audio <text> [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] - 文字转语音（自动播放）");
+        eprintln!("  text_to_audio <text> [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] - 文字转语音（自动播放）");
         eprintln!("  text_to_audio_stream <text> [--voice v] [--emotion e] [--continuous-sound] - 流式 TTS（WebSocket，单次最大 10000 字符；continuous_sound 仅 speech-2.8-hd/turbo）");
         eprintln!("  generate_audio_async <text> [--voice v] [--emotion e] [--text-file-id id] - 异步 TTS（≤5万字符，需配 query_audio_task 拉取结果）");
         eprintln!("  query_audio_task <task_id> - 查询异步 TTS 任务并下载播放");
@@ -45,7 +45,7 @@ async fn main() {
         eprintln!("  generate_music_cover <audio_url> [--prompt p] [--lyrics l] - 翻唱（自动播放；内部自动预处理音频）");
         eprintln!("  generate_lyrics <style>  - 歌词生成");
         eprintln!("  voice_clone <voice_id> <audio_file> [text] - 音色克隆（自动上传参考音频）");
-        eprintln!("  voice_design <prompt> <preview_text> [voice_id] - 音色设计 ⚠️ 需要较大账户余额（API error 1008）");
+        eprintln!("  voice_design <prompt> <preview_text> [voice_id] - 音色设计");
         eprintln!("  delete_voice <voice_type> <voice_id> - 删除音色");
         eprintln!("  list_files <purpose>     - 列出平台文件");
         eprintln!("  retrieve_file <file_id>  - 查看文件详情");
@@ -148,6 +148,7 @@ async fn main() {
             let mut vol: Option<f64> = None;
             let mut pitch: Option<i32> = None;
             let mut emotion: Option<String> = None;
+            let mut model = "speech-2.8-hd".to_string();
             let mut text: String = String::new();
             let mut found_text = false;
 
@@ -169,6 +170,9 @@ async fn main() {
                 } else if arg == "--emotion" && i + 1 < args.len() {
                     emotion = Some(args[i + 1].clone());
                     i += 2;
+                } else if arg == "--model" && i + 1 < args.len() {
+                    model = args[i + 1].clone();
+                    i += 2;
                 } else if arg.starts_with("--") {
                     eprintln!("Unknown option: {}", arg);
                     exit(1);
@@ -186,12 +190,12 @@ async fn main() {
             }
 
             if text.is_empty() {
-                eprintln!("Usage: text_to_audio <text> [--voice voice_id] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion happy|sad|angry|calm|fluent|whisper|...]");
+                eprintln!("Usage: text_to_audio <text> [--model m] [--voice voice_id] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion happy|sad|angry|calm|fluent|whisper|...]");
                 exit(1);
             }
 
             let req = T2ARequest {
-                model: "speech-2.8-hd".to_string(),
+                model,
                 text: text.clone(),
                 stream: Some(false),
                 stream_options: None,
