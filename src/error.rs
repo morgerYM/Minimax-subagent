@@ -35,4 +35,7 @@ pub enum MiniMaxError {
 
     #[error("hex decode error: {0}")]
     HexDecode(String),
+
+    #[error("invalid path: {0}")]
+    InvalidPath(String),
 }

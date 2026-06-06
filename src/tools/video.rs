@@ -62,15 +62,23 @@ pub async fn handle_generate_video(
             .generate_video_and_download(&req)
             .await
             .map_err(to_mcp_err)?;
-        if let Some(dir) = &params.output_directory {
-            let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-            let filename = utils::build_filename("video", &req.prompt, "mp4");
-            let filepath = path.join(filename);
-            tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
-            return Ok(CallToolResult::success(vec![Content::text(format!(
-                "Video generated! Saved to: {}",
-                filepath.display()
-            ))]));
+        if params.output_directory.is_some() || params.output_file.is_some() {
+            if let Some(path) = utils::write_output_file(
+                params.output_file.as_deref(),
+                params.output_directory.as_deref(),
+                "video",
+                &req.prompt,
+                "mp4",
+                &bytes,
+            )
+            .await
+            .map_err(to_mcp_err)?
+            {
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "Video generated! Saved to: {}",
+                    path.display()
+                ))]));
+            }
         }
         Ok(CallToolResult::success(vec![Content::text(format!(
             "Video generated! Size: {:.1} MB",
@@ -92,18 +100,25 @@ pub async fn handle_query_video(
                 .get_file_download_url(file_id)
                 .await
                 .map_err(to_mcp_err)?;
-            if let Some(dir) = &params.output_directory {
-                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-                let filename = utils::build_filename("video", &params.task_id, "mp4");
-                let filepath = path.join(filename);
-                client
-                    .download_to_path(&download_url, &filepath)
-                    .await
-                    .map_err(to_mcp_err)?;
-                return Ok(CallToolResult::success(vec![Content::text(format!(
-                    "Video generated! Saved to: {}",
-                    filepath.display()
-                ))]));
+            if params.output_directory.is_some() || params.output_file.is_some() {
+                if let Some(path) = utils::resolve_output_file(
+                    params.output_file.as_deref(),
+                    params.output_directory.as_deref(),
+                    "video",
+                    &params.task_id,
+                    "mp4",
+                )
+                .map_err(to_mcp_err)?
+                {
+                    client
+                        .download_to_path(&download_url, &path)
+                        .await
+                        .map_err(to_mcp_err)?;
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "Video generated! Saved to: {}",
+                        path.display()
+                    ))]));
+                }
             }
             Ok(CallToolResult::success(vec![Content::text(format!(
                 "Video generated!\nfile_id: {}\ndownload_url: {}",
@@ -141,10 +156,19 @@ pub async fn handle_generate_video_agent(
 
     let resp = client.create_video_template(&req).await.map_err(to_mcp_err)?;
 
-    Ok(CallToolResult::success(vec![Content::text(format!(
+    let task_id = resp.task_id.as_deref().unwrap_or("N/A");
+    let mut msg = format!(
         "Video Agent task submitted!\ntask_id: {}\nUse query_video_agent to poll progress.",
-        resp.task_id.as_deref().unwrap_or("N/A")
-    ))]))
+        task_id
+    );
+    if params.output_directory.is_some() || params.output_file.is_some() {
+        msg.push_str(&format!(
+            "\n(output_directory: {:?}, output_file: {:?} — echoed for reference; actual save happens in the query step.)",
+            params.output_directory, params.output_file
+        ));
+    }
+
+    Ok(CallToolResult::success(vec![Content::text(msg)]))
 }
 
 pub async fn handle_query_video_agent(
@@ -158,10 +182,34 @@ pub async fn handle_query_video_agent(
 
     match resp.status.as_str() {
         "Success" => {
-            let url = resp.video_url.as_deref().unwrap_or("N/A");
+            let url = resp.video_url.clone().unwrap_or_default();
+            if (params.output_directory.is_some() || params.output_file.is_some())
+                && !url.is_empty()
+            {
+                if let Some(path) = utils::resolve_output_file(
+                    params.output_file.as_deref(),
+                    params.output_directory.as_deref(),
+                    "video_agent",
+                    &params.task_id,
+                    "mp4",
+                )
+                .map_err(to_mcp_err)?
+                {
+                    client
+                        .download_to_path(&url, &path)
+                        .await
+                        .map_err(to_mcp_err)?;
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "Video Agent task succeeded!\ntask_id: {}\nSaved to: {}",
+                        params.task_id,
+                        path.display()
+                    ))]));
+                }
+            }
             Ok(CallToolResult::success(vec![Content::text(format!(
                 "Video Agent task succeeded!\ntask_id: {}\nvideo_url: {}",
-                params.task_id, url
+                params.task_id,
+                if url.is_empty() { "N/A" } else { &url }
             ))]))
         }
         "Fail" => Ok(CallToolResult::success(vec![Content::text(

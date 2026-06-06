@@ -219,3 +219,6 @@ afplay <file_path>
 ### Related Projects
 
 - MiniMax Rust CLI (separate project) — **not related** to this repo
+
+## git 
+- 只能git add，git commit -m, 

@@ -40,19 +40,26 @@ pub async fn handle_generate_music(
 
     let resp = client.generate_music(&req).await.map_err(to_mcp_err)?;
 
-    if let Some(dir) = &params.output_directory {
+    if params.output_directory.is_some() || params.output_file.is_some() {
         if let Some(data) = &resp.data {
             if let Some(audio_hex) = &data.audio {
-                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-                let ext = &req.audio_setting.format;
-                let filename = utils::build_filename("music", &req.prompt, ext);
-                let filepath = path.join(filename);
                 let bytes = utils::decode_hex_audio(audio_hex).map_err(to_mcp_err)?;
-                tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
-                return Ok(CallToolResult::success(vec![Content::text(format!(
-                    "Music saved to: {}",
-                    filepath.display()
-                ))]));
+                if let Some(path) = utils::write_output_file(
+                    params.output_file.as_deref(),
+                    params.output_directory.as_deref(),
+                    "music",
+                    &req.prompt,
+                    &req.audio_setting.format,
+                    &bytes,
+                )
+                .await
+                .map_err(to_mcp_err)?
+                {
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "Music saved to: {}",
+                        path.display()
+                    ))]));
+                }
             }
         }
     }
@@ -144,18 +151,26 @@ pub async fn handle_generate_music_cover(
 
     let resp = client.generate_music(&req).await.map_err(to_mcp_err)?;
 
-    if let Some(dir) = &params.output_directory {
+    if params.output_directory.is_some() || params.output_file.is_some() {
         if let Some(data) = &resp.data {
             if let Some(audio_hex) = &data.audio {
-                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-                let filename = utils::build_filename("music_cover", &req.prompt, "mp3");
-                let filepath = path.join(filename);
                 let bytes = utils::decode_hex_audio(audio_hex).map_err(to_mcp_err)?;
-                tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
-                return Ok(CallToolResult::success(vec![Content::text(format!(
-                    "Cover generated! Saved to: {}",
-                    filepath.display()
-                ))]));
+                if let Some(path) = utils::write_output_file(
+                    params.output_file.as_deref(),
+                    params.output_directory.as_deref(),
+                    "music_cover",
+                    &req.prompt,
+                    "mp3",
+                    &bytes,
+                )
+                .await
+                .map_err(to_mcp_err)?
+                {
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "Cover generated! Saved to: {}",
+                        path.display()
+                    ))]));
+                }
             }
         }
     }

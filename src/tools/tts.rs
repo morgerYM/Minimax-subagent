@@ -54,19 +54,26 @@ pub async fn handle_text_to_audio(
 
     let resp = client.text_to_audio(&req).await.map_err(to_mcp_err)?;
 
-    if let Some(dir) = &params.output_directory {
+    if params.output_directory.is_some() || params.output_file.is_some() {
         if let Some(data) = &resp.data {
             if let Some(audio_hex) = &data.audio {
-                let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-                let ext = &req.audio_setting.format;
-                let filename = utils::build_filename("text_to_audio", &req.text, ext);
-                let filepath = path.join(filename);
                 let bytes = utils::decode_hex_audio(audio_hex).map_err(to_mcp_err)?;
-                tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
-                return Ok(CallToolResult::success(vec![Content::text(format!(
-                    "Saved to: {}",
-                    filepath.display()
-                ))]));
+                if let Some(path) = utils::write_output_file(
+                    params.output_file.as_deref(),
+                    params.output_directory.as_deref(),
+                    "text_to_audio",
+                    &req.text,
+                    &req.audio_setting.format,
+                    &bytes,
+                )
+                .await
+                .map_err(to_mcp_err)?
+                {
+                    return Ok(CallToolResult::success(vec![Content::text(format!(
+                        "Saved to: {}",
+                        path.display()
+                    ))]));
+                }
             }
         }
     }
@@ -163,21 +170,28 @@ pub async fn handle_voice_clone(
 
     let resp = client.voice_clone(&req).await.map_err(to_mcp_err)?;
 
-    if let Some(dir) = &params.output_directory {
+    if params.output_directory.is_some() || params.output_file.is_some() {
         if let Some(demo_url) = &resp.demo_audio {
-            let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
             let text = req.text.as_deref().unwrap_or("voice");
-            let filename = utils::build_filename("voice_clone", text, "wav");
-            let filepath = path.join(filename);
-            client
-                .download_to_path(demo_url, &filepath)
-                .await
-                .map_err(to_mcp_err)?;
-            return Ok(CallToolResult::success(vec![Content::text(format!(
-                "Voice cloned!\nvoice_id: {}\nSaved to: {}",
-                req.voice_id,
-                filepath.display()
-            ))]));
+            if let Some(path) = utils::resolve_output_file(
+                params.output_file.as_deref(),
+                params.output_directory.as_deref(),
+                "voice_clone",
+                text,
+                "wav",
+            )
+            .map_err(to_mcp_err)?
+            {
+                client
+                    .download_to_path(demo_url, &path)
+                    .await
+                    .map_err(to_mcp_err)?;
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "Voice cloned!\nvoice_id: {}\nSaved to: {}",
+                    req.voice_id,
+                    path.display()
+                ))]));
+            }
         }
     }
 
@@ -200,19 +214,26 @@ pub async fn handle_voice_design(
 
     let resp = client.voice_design(&req).await.map_err(to_mcp_err)?;
 
-    if let Some(dir) = &params.output_directory {
+    if params.output_directory.is_some() || params.output_file.is_some() {
         if let Some(audio_hex) = &resp.trial_audio {
-            let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-            let filename =
-                utils::build_filename("voice_design", &req.preview_text, "mp3");
-            let filepath = path.join(filename);
             let bytes = utils::decode_hex_audio(audio_hex).map_err(to_mcp_err)?;
-            tokio::fs::write(&filepath, &bytes).await.map_err(to_mcp_err)?;
-            return Ok(CallToolResult::success(vec![Content::text(format!(
-                "Voice design done!\nvoice_id: {}\nSaved to: {}",
-                resp.voice_id.unwrap_or_else(|| "N/A".to_string()),
-                filepath.display()
-            ))]));
+            if let Some(path) = utils::write_output_file(
+                params.output_file.as_deref(),
+                params.output_directory.as_deref(),
+                "voice_design",
+                &req.preview_text,
+                "mp3",
+                &bytes,
+            )
+            .await
+            .map_err(to_mcp_err)?
+            {
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "Voice design done!\nvoice_id: {}\nSaved to: {}",
+                    resp.voice_id.unwrap_or_else(|| "N/A".to_string()),
+                    path.display()
+                ))]));
+            }
         }
     }
 
@@ -283,7 +304,9 @@ pub async fn handle_generate_audio_async(
         "task_id": resp.task_id,
         "file_id": resp.file_id,
         "usage_characters": resp.usage_characters,
-        "message": format!("Async TTS task submitted. Use query_audio_task --task_id {} to poll progress and download result.", resp.task_id),
+        "output_directory": params.output_directory,
+        "output_file": params.output_file,
+        "message": format!("Async TTS task submitted. Use query_audio_task --task_id {} to poll progress and download result. (output_directory/output_file are echoed back for reference; the actual save happens in the query step.)", resp.task_id),
     }))
     .map_err(to_mcp_err)?;
 
@@ -342,16 +365,24 @@ pub async fn handle_query_audio_task(
         ErrorData::internal_error("tar 包中未找到 mp3 文件", None)
     })?;
 
-    if let Some(dir) = &params.output_directory {
-        let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-        let filename = utils::build_filename("async_tts", &task_id.to_string(), "mp3");
-        let filepath = path.join(filename);
-        tokio::fs::write(&filepath, &mp3).await.map_err(to_mcp_err)?;
-        return Ok(CallToolResult::success(vec![Content::text(format!(
-            "Async TTS done! Saved to: {} ({} bytes)",
-            filepath.display(),
-            mp3.len()
-        ))]));
+    if params.output_directory.is_some() || params.output_file.is_some() {
+        if let Some(path) = utils::write_output_file(
+            params.output_file.as_deref(),
+            params.output_directory.as_deref(),
+            "async_tts",
+            &task_id.to_string(),
+            "mp3",
+            &mp3,
+        )
+        .await
+        .map_err(to_mcp_err)?
+        {
+            return Ok(CallToolResult::success(vec![Content::text(format!(
+                "Async TTS done! Saved to: {} ({} bytes)",
+                path.display(),
+                mp3.len()
+            ))]));
+        }
     }
 
     Ok(CallToolResult::success(vec![Content::text(format!(
@@ -405,19 +436,29 @@ pub async fn handle_text_to_audio_stream(
 
     ws.task_finish().await.map_err(to_mcp_err)?;
 
-    if let Some(dir) = &params.output_directory {
-        let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
-        let ext = ws_req.audio_setting.as_ref().map_or("mp3", |a| &a.format);
-        let filename = utils::build_filename("stream_tts", &params.text, ext);
-        let filepath = path.join(filename);
-        tokio::fs::write(&filepath, &audio_bytes)
-            .await
-            .map_err(to_mcp_err)?;
-        return Ok(CallToolResult::success(vec![Content::text(format!(
-            "Stream TTS done! Saved to: {} ({} bytes)",
-            filepath.display(),
-            audio_bytes.len()
-        ))]));
+    if params.output_directory.is_some() || params.output_file.is_some() {
+        let ext_owned = ws_req
+            .audio_setting
+            .as_ref()
+            .map(|a| a.format.clone())
+            .unwrap_or_else(|| "mp3".to_string());
+        if let Some(path) = utils::write_output_file(
+            params.output_file.as_deref(),
+            params.output_directory.as_deref(),
+            "stream_tts",
+            &params.text,
+            &ext_owned,
+            &audio_bytes,
+        )
+        .await
+        .map_err(to_mcp_err)?
+        {
+            return Ok(CallToolResult::success(vec![Content::text(format!(
+                "Stream TTS done! Saved to: {} ({} bytes)",
+                path.display(),
+                audio_bytes.len()
+            ))]));
+        }
     }
 
     Ok(CallToolResult::success(vec![Content::text(format!(
