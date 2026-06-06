@@ -317,6 +317,38 @@ impl MiniMaxClient {
         Ok(response.json().await?)
     }
 
+    /// POST /anthropic/v1/messages — agent-style chat with tool_use.
+    ///
+    /// Same endpoint as [`chat`] but accepts the agent-flavored request
+    /// type that supports the `tools` field and structured content blocks.
+    /// Used by the subagent system.
+    pub async fn chat_agent(
+        &self,
+        req: &AgentChatRequest,
+    ) -> Result<AgentChatResponse, MiniMaxError> {
+        let url = format!("{}/anthropic/v1/messages", self.base_url);
+        let response = self
+            .http
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("MM-API-Source", "Minimax-MCP")
+            .json(req)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(MiniMaxError::Api {
+                code: status as i32,
+                message: body,
+                trace_id: None,
+            });
+        }
+
+        Ok(response.json().await?)
+    }
+
     /// POST /v1/lyrics_generation — generate song lyrics.
     pub async fn generate_lyrics(
         &self,

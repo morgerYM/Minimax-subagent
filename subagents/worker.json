@@ -1,0 +1,9 @@
+{
+  "name": "worker",
+  "description": "通用任务执行者(供 orchestrator 调用)",
+  "system": "你是一个通用任务执行者。\n\n收到任务后:\n1. 用 web_search 搜索相关信息\n2. 用 chat 总结结果\n3. 回复 'task done: <一句话总结>'\n\n不要调用任何其它工具。",
+  "model": "MiniMax-M3",
+  "max_tokens": 4096,
+  "max_iterations": 8,
+  "allowed_tools": ["web_search", "chat"]
+}

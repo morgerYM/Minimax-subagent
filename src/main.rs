@@ -1,9 +1,11 @@
-mod mcp_params;
+mod subagent_impl;
 mod tools;
 
-use minimax_api::MiniMaxClient;
+use std::sync::Arc;
 
-use mcp_params::*;
+use minimax_api::mcp_params::*;
+use minimax_api::subagent::SubagentRegistry;
+use minimax_api::MiniMaxClient;
 
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::handler::server::ServerHandler;
@@ -18,10 +20,40 @@ fn to_mcp_err(e: impl std::fmt::Display) -> ErrorData {
 #[derive(Clone)]
 struct MiniMaxMcp {
     client: MiniMaxClient,
+    registry: Arc<SubagentRegistry>,
 }
 
 #[tool_router]
 impl MiniMaxMcp {
+    // ============================================================
+    // Subagent tools (registered first so they appear prominently)
+    // ============================================================
+
+    #[tool(description = "运行一个具名 subagent。Subagent 在 subagents/<name>.json 中由用户定义;运行时会进入 LLM agent loop,可以调用任意 MCP 工具,并能递归调用其他 subagent。返回最终文本输出 + 完整 tool 调用历史。")]
+    async fn run_subagent(
+        &self,
+        Parameters(params): Parameters<RunSubagentParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        tools::subagent::handle_run_subagent(&self.client, &self.registry, params).await
+    }
+
+    #[tool(description = "列出当前可用的所有 subagent(从 subagents/*.json 加载),返回 name + description。")]
+    async fn list_subagents(&self) -> Result<CallToolResult, ErrorData> {
+        tools::subagent::handle_list_subagents(&self.registry).await
+    }
+
+    #[tool(description = "查看某个 subagent 的完整配置(system prompt / 允许的工具 / 限额等)。")]
+    async fn get_subagent(
+        &self,
+        Parameters(params): Parameters<GetSubagentParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        tools::subagent::handle_get_subagent(&self.registry, params).await
+    }
+
+    // ============================================================
+    // Existing 22 MCP tools
+    // ============================================================
+
     #[tool(description = "将文本转为语音。参数:音色(默认 female-shaonv)、语速、音量、音调、情感(9种,fluent/whisper 仅 speech-2.6-turbo/hd)、采样率、比特率、音频格式、输出目录。返回 hex 编码音频或保存路径。")]
     async fn text_to_audio(
         &self,
@@ -207,7 +239,7 @@ impl MiniMaxMcp {
 #[tool_handler(
     name = "minimax-mcp",
     version = "0.1.0",
-    instructions = "MiniMax API MCP server — 提供视频生成、语音合成、图像生成、音乐生成等能力。需要设置 MINIMAX_API_KEY 环境变量。"
+    instructions = "MiniMax API MCP server — 提供视频生成、语音合成、图像生成、音乐生成等能力。需要设置 MINIMAX_API_KEY 环境变量。可用 subagents/*.json 定义具名 subagent,让 LLM 通过 run_subagent 工具调用它们(并可递归组合)。"
 )]
 impl ServerHandler for MiniMaxMcp {}
 
@@ -221,7 +253,14 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let client = MiniMaxClient::from_env()?;
-    let server = MiniMaxMcp { client };
+
+    // Load subagent definitions from ./subagents/ at startup.
+    // Missing directory is OK — just an empty registry.
+    let registry = Arc::new(SubagentRegistry::load_from_dir(std::path::Path::new(
+        "subagents",
+    ))?);
+
+    let server = MiniMaxMcp { client, registry };
     let service = server.serve(rmcp::transport::stdio()).await?;
     service.waiting().await?;
     Ok(())

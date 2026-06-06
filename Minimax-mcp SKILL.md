@@ -134,6 +134,48 @@ query_usage
   → 查询 Token 余额和 API 用量
 ```
 
+## Subagent (子智能体)
+
+Subagent 是一个**带预设 system prompt 的 LLM agent**,可以调用任意 MCP 工具,并能**递归**调用其他 subagent。
+Subagent 定义在项目根目录的 `subagents/<name>.json` 中(用户编辑),启动时加载。
+
+```
+list_subagents
+  → 列出所有已加载的 subagent(name + description)
+
+get_subagent name="video-creator"
+  → 查看 subagent 完整配置(system / 允许的工具 / 限额)
+
+run_subagent name="video-creator" task="用 happy 情感读 'Hello'"
+  → 运行 subagent,返回最终文本输出 + 完整 tool 调用历史(含递归 subagent 调用链)
+```
+
+**示例 subagent 配置** `subagents/echo.json`:
+
+```json
+{
+  "name": "echo",
+  "description": "回声测试 agent",
+  "system": "你回显用户的输入,不要调用任何工具。",
+  "model": "MiniMax-M3",
+  "max_tokens": 4096,
+  "max_iterations": 5,
+  "allowed_tools": []
+}
+```
+
+**递归示例** `subagents/orchestrator.json` 委派给 `subagents/worker.json`:
+
+```json
+{
+  "name": "orchestrator",
+  "description": "把任务拆给 worker",
+  "system": "调用 run_subagent(name=\"worker\", task=<用户原始任务>)后,直接回复 worker 的输出。"
+}
+```
+
+⚠️ `run_subagent` 本身**总是隐式可用**给所有 subagent,即使 `allowed_tools` 没有列出 — 这是递归组合的关键。
+
 ---
 
 ## Tips

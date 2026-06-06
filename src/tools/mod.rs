@@ -6,3 +6,4 @@ pub mod chat;
 pub mod search;
 pub mod usage;
 pub mod files;
+pub mod subagent;

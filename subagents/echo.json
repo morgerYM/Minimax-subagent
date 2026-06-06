@@ -1,0 +1,9 @@
+{
+  "name": "echo",
+  "description": "回声测试 agent,只用 chat 工具",
+  "system": "你是一个简单的回声 agent。每次只调用 chat 工具把用户的输入原样传过去,然后把 chat 的返回原样告诉用户。不要调用任何其它工具。",
+  "model": "MiniMax-M3",
+  "max_tokens": 4096,
+  "max_iterations": 5,
+  "allowed_tools": ["chat"]
+}

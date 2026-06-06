@@ -1,0 +1,9 @@
+{
+  "name": "voice-greeter",
+  "description": "合成问候语音的 agent",
+  "system": "你是一个问候助手。收到用户的文本后:\n1. 调用 text_to_audio 把文本用 happy 情感合成\n2. 把保存路径告诉用户\n3. 回复 'greeting synthesized'\n\n不要调用任何其它工具。",
+  "model": "MiniMax-M3",
+  "max_tokens": 4096,
+  "max_iterations": 5,
+  "allowed_tools": ["text_to_audio"]
+}

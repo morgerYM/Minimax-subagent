@@ -1,4 +1,4 @@
-use rmcp::schemars;
+use schemars;
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct TextToAudioParams {
@@ -330,4 +330,22 @@ pub struct GenerateVideoAgentParams {
 pub struct QueryVideoAgentParams {
     #[schemars(description = "视频Agent任务的 task_id")]
     pub task_id: String,
+}
+
+// ============================================================
+// Subagent
+// ============================================================
+
+#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+pub struct RunSubagentParams {
+    #[schemars(description = "Subagent 名称（需在 subagents/<name>.json 中已定义）")]
+    pub name: String,
+    #[schemars(description = "交给 subagent 完成的任务描述（user prompt）")]
+    pub task: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetSubagentParams {
+    #[schemars(description = "要查看的 subagent 名称")]
+    pub name: String,
 }

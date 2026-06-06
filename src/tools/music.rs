@@ -8,7 +8,7 @@ use minimax_api::types::*;
 use minimax_api::utils;
 use minimax_api::MiniMaxClient;
 
-use crate::mcp_params::*;
+use minimax_api::mcp_params::*;
 use crate::to_mcp_err;
 
 use rmcp::model::{CallToolResult, Content};
