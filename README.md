@@ -130,7 +130,7 @@ API Key 通过 `MiniMaxClient::from_env()` 自动从环境变量读取，**不�
 ## 目录结构
 
 ```
-minimax_agent/
+Minimax_agent/
 ├── src/
 │   ├── main.rs        # MCP 服务器入口
 │   ├── client.rs      # API 客户端

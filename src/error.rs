@@ -38,4 +38,7 @@ pub enum MiniMaxError {
 
     #[error("config error: {0}")]
     Config(String),
+
+    #[error("invalid path: {0}")]
+    InvalidPath(String),
 }

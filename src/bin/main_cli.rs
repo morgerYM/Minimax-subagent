@@ -21,6 +21,31 @@ fn collect_args(args: &[String], start: usize) -> String {
     args[start..].join(" ")
 }
 
+/// Parse `--file <path>` and `--output-directory <dir>` from `args[start..]`.
+/// Returns `(file, output_directory, next_index)`. These flags must appear
+/// before any positional arguments (they are consumed in order from the start).
+fn parse_output_flags(
+    args: &[String],
+    start: usize,
+) -> (Option<String>, Option<String>, usize) {
+    let mut file: Option<String> = None;
+    let mut dir: Option<String> = None;
+    let mut i = start;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--file" && i + 1 < args.len() {
+            file = Some(args[i + 1].clone());
+            i += 2;
+        } else if a == "--output-directory" && i + 1 < args.len() {
+            dir = Some(args[i + 1].clone());
+            i += 2;
+        } else {
+            break;
+        }
+    }
+    (file, dir, i)
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = env::args().collect();
@@ -31,27 +56,28 @@ async fn main() {
         eprintln!("Commands:");
         eprintln!("  list_voices [voice_type] - 列出音色（voice_type: all/system/voice_cloning/voice_generation，默认 all）");
         eprintln!("  query_usage              - 查询账户用量");
-        eprintln!("  text_to_audio <text> [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] - 文字转语音（自动播放）");
-        eprintln!("  text_to_audio_stream <text> [--voice v] [--emotion e] [--continuous-sound] - 流式 TTS（WebSocket，单次最大 10000 字符；continuous_sound 仅 speech-2.8-hd/turbo）");
-        eprintln!("  generate_audio_async <text> [--voice v] [--emotion e] [--text-file-id id] - 异步 TTS（≤5万字符，需配 query_audio_task 拉取结果）");
-        eprintln!("  query_audio_task <task_id> - 查询异步 TTS 任务并下载播放");
+        eprintln!("  text_to_audio <text> [--model m] [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e]");
+        eprintln!("    [--file <path>] [--output-directory <dir>] - 文字转语音（自动播放；指定输出路径时仅保存不播放）");
+        eprintln!("  text_to_audio_stream <text> [--voice v] [--emotion e] [--continuous-sound] [--file <path>] [--output-directory <dir>] - 流式 TTS（WebSocket，单次最大 10000 字符；continuous_sound 仅 speech-2.8-hd/turbo）");
+        eprintln!("  generate_audio_async <text> [--voice v] [--emotion e] [--text-file-id id] [--file <path>] [--output-directory <dir>] - 异步 TTS（≤5万字符；--file/--output-directory 在 query_audio_task 时生效）");
+        eprintln!("  query_audio_task <task_id> [--file <path>] [--output-directory <dir>] - 查询异步 TTS 任务并下载播放（指定输出路径时仅保存）");
         eprintln!("  web_search <query>       - 网络搜索");
         eprintln!("  understand_image <prompt> <image_path> - 图片理解");
         eprintln!("  chat [--model m] [--system s] [--max-tokens n] [--temperature t] [--messages json] <message> - 文本对话");
-        eprintln!("  generate_image [--aspect-ratio r] [--n n] [--style-type s] [--seed s] ... <prompt> - 图像生成（自动打开）");
-        eprintln!("  generate_video [--wait] [--model m] [--resolution r] [--duration d] ... <prompt> - 视频生成");
-        eprintln!("  query_video <task_id>    - 查询视频任务状态");
-        eprintln!("  generate_music <prompt> <lyrics> - 音乐生成（自动播放；is_instrumental=true 时 lyrics 传空串）");
-        eprintln!("  generate_music_cover <audio_url> [--prompt p] [--lyrics l] - 翻唱（自动播放；内部自动预处理音频）");
+        eprintln!("  generate_image [--aspect-ratio r] [--n n] [--style-type s] [--seed s] ... [--file <path>] [--output-directory <dir>] <prompt> - 图像生成（自动打开；指定输出路径时仅保存）");
+        eprintln!("  generate_video [--wait] [--model m] [--resolution r] [--duration d] ... [--file <path>] [--output-directory <dir>] <prompt> - 视频生成");
+        eprintln!("  query_video <task_id> [--file <path>] [--output-directory <dir>] - 查询视频任务状态（指定输出路径时下载保存）");
+        eprintln!("  generate_music <prompt> <lyrics> [--file <path>] [--output-directory <dir>] - 音乐生成（自动播放；is_instrumental=true 时 lyrics 传空串）");
+        eprintln!("  generate_music_cover <audio_url> [--prompt p] [--lyrics l] [--file <path>] [--output-directory <dir>] - 翻唱（自动播放；内部自动预处理音频）");
         eprintln!("  generate_lyrics <style>  - 歌词生成");
-        eprintln!("  voice_clone <voice_id> <audio_file> [text] - 音色克隆（自动上传参考音频）");
-        eprintln!("  voice_design <prompt> <preview_text> [voice_id] - 音色设计");
+        eprintln!("  voice_clone <voice_id> <audio_file> [text] [--file <path>] [--output-directory <dir>] - 音色克隆（自动上传参考音频）");
+        eprintln!("  voice_design <prompt> <preview_text> [voice_id] [--file <path>] [--output-directory <dir>] - 音色设计 ⚠️ 需要较大账户余额（API error 1008）");
         eprintln!("  delete_voice <voice_type> <voice_id> - 删除音色");
         eprintln!("  list_files <purpose>     - 列出平台文件");
         eprintln!("  retrieve_file <file_id>  - 查看文件详情");
         eprintln!("  delete_file <file_id> <purpose> - 删除文件");
-        eprintln!("  generate_video_agent <template_id> [--text-inputs v1,v2] [--media-inputs u1,u2] - 模板视频");
-        eprintln!("  query_video_agent <task_id> - 查询模板视频状态");
+        eprintln!("  generate_video_agent <template_id> [--text-inputs v1,v2] [--media-inputs u1,u2] [--file <path>] [--output-directory <dir>] - 模板视频");
+        eprintln!("  query_video_agent <task_id> [--file <path>] [--output-directory <dir>] - 查询模板视频状态（指定输出路径时下载保存）");
         exit(0);
     }
 
@@ -143,6 +169,7 @@ async fn main() {
         "text_to_audio" => {
             // 简单参数解析：text --voice xxx --speed 1.5 --vol 1.0 --pitch 0 --emotion happy
             // 默认音色: female-yujie
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
             let mut voice_id = "female-yujie".to_string();
             let mut speed: Option<f64> = None;
             let mut vol: Option<f64> = None;
@@ -152,7 +179,7 @@ async fn main() {
             let mut text: String = String::new();
             let mut found_text = false;
 
-            let mut i = 2;
+            let mut i = next_i;
             while i < args.len() {
                 let arg = &args[i];
                 if arg == "--voice" && i + 1 < args.len() {
@@ -190,7 +217,7 @@ async fn main() {
             }
 
             if text.is_empty() {
-                eprintln!("Usage: text_to_audio <text> [--model m] [--voice voice_id] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion happy|sad|angry|calm|fluent|whisper|...]");
+                eprintln!("Usage: text_to_audio <text> [--model m] [--voice voice_id] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion happy|sad|angry|calm|fluent|whisper|...] [--file <path>] [--output-directory <dir>]");
                 exit(1);
             }
 
@@ -229,9 +256,34 @@ async fn main() {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
                         if let Some(audio) = &data.audio {
-                            match utils::save_and_play_audio(audio, "text_to_audio") {
-                                Ok(path) => println!("音频已保存并播放: {}", path.display()),
-                                Err(e) => println!("音频生成成功，保存/播放失败: {}", e),
+                            let custom = out_file.is_some() || out_dir.is_some();
+                            if custom {
+                                match utils::decode_hex_audio(audio) {
+                                    Ok(bytes) => {
+                                        match utils::write_output_file(
+                                            out_file.as_deref(),
+                                            out_dir.as_deref(),
+                                            "text_to_audio",
+                                            &text,
+                                            "mp3",
+                                            &bytes,
+                                        )
+                                        .await
+                                        {
+                                            Ok(Some(p)) => {
+                                                println!("音频已保存: {}", p.display())
+                                            }
+                                            Ok(None) => println!("音频生成成功"),
+                                            Err(e) => println!("保存失败: {}", e),
+                                        }
+                                    }
+                                    Err(e) => println!("hex 解码失败: {}", e),
+                                }
+                            } else {
+                                match utils::save_and_play_audio(audio, "text_to_audio") {
+                                    Ok(path) => println!("音频已保存并播放: {}", path.display()),
+                                    Err(e) => println!("音频生成成功，保存/播放失败: {}", e),
+                                }
                             }
                         } else {
                             println!("音频生成成功，但无数据");
@@ -398,6 +450,7 @@ async fn main() {
         }
 
         "generate_image" => {
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
             let mut model = "image-01".to_string();
             let mut aspect_ratio: Option<String> = None;
             let mut n: Option<i32> = Some(1);
@@ -410,7 +463,7 @@ async fn main() {
             let mut response_format: Option<String> = None;
             let mut prompt = String::new();
 
-            let mut i = 2;
+            let mut i = next_i;
             while i < args.len() {
                 let arg = &args[i];
                 if arg == "--model" && i + 1 < args.len() {
@@ -454,7 +507,7 @@ async fn main() {
             }
 
             if prompt.is_empty() {
-                eprintln!("Usage: generate_image [--model m] [--aspect-ratio 1:1|16:9|...] [--n 1-9] [--style-type cartoon|...] [--style-weight 0-1] [--width w] [--height h] [--seed s] [--no-optimizer] [--response-format url|base64] <prompt>");
+                eprintln!("Usage: generate_image [--model m] [--aspect-ratio 1:1|16:9|...] [--n 1-9] [--style-type cartoon|...] [--style-weight 0-1] [--width w] [--height h] [--seed s] [--no-optimizer] [--response-format url|base64] [--file <path>] [--output-directory <dir>] <prompt>");
                 exit(1);
             }
 
@@ -465,7 +518,7 @@ async fn main() {
 
             let req = ImageGenerationRequest {
                 model,
-                prompt,
+                prompt: prompt.clone(),
                 aspect_ratio,
                 n,
                 prompt_optimizer,
@@ -480,10 +533,50 @@ async fn main() {
             match client.generate_image(&req).await {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
+                        let custom = out_file.is_some() || out_dir.is_some();
                         println!("图像生成成功 (共 {} 张):", data.image_urls.len());
-                        for url in &data.image_urls {
+                        let total = data.image_urls.len();
+                        for (idx, url) in data.image_urls.iter().enumerate() {
                             println!("  {}", url);
-                            if let Ok(path) = utils::download_and_open_image(url, "generate_image").await {
+                            if custom {
+                                // Mirror MCP image handler: per-index stem when n>1.
+                                let per_file = if let Some(f) = out_file.as_deref() {
+                                    let p = std::path::Path::new(f);
+                                    let stem = p
+                                        .file_stem()
+                                        .and_then(|s| s.to_str())
+                                        .unwrap_or("image");
+                                    let ext = p
+                                        .extension()
+                                        .and_then(|e| e.to_str())
+                                        .unwrap_or("jpg");
+                                    if total > 1 {
+                                        format!("{stem}_{idx}.{ext}")
+                                    } else {
+                                        format!("{stem}.{ext}")
+                                    }
+                                } else {
+                                    String::new()
+                                };
+                                match utils::resolve_output_file(
+                                    if per_file.is_empty() { None } else { Some(per_file.as_str()) },
+                                    out_dir.as_deref(),
+                                    "image",
+                                    &format!("{}_{}", idx, prompt),
+                                    "jpg",
+                                ) {
+                                    Ok(Some(path)) => {
+                                        match client.download_to_path(url, &path).await {
+                                            Ok(()) => println!("  [已保存: {}]", path.display()),
+                                            Err(e) => println!("  [下载失败: {}]", e),
+                                        }
+                                    }
+                                    Ok(None) => {
+                                        // Should not happen since custom==true
+                                    }
+                                    Err(e) => println!("  [路径解析失败: {}]", e),
+                                }
+                            } else if let Ok(path) = utils::download_and_open_image(url, "generate_image").await {
                                 println!("  [已打开: {}]", path.display());
                             }
                         }
@@ -508,7 +601,8 @@ async fn main() {
             let mut subject_ref_json: Option<String> = None;
             let mut prompt = String::new();
 
-            let mut i = 2;
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            let mut i = next_i;
             while i < args.len() {
                 let arg = &args[i];
                 if arg == "--model" && i + 1 < args.len() {
@@ -543,7 +637,7 @@ async fn main() {
             }
 
             if prompt.is_empty() {
-                eprintln!("Usage: generate_video [--model m] [--wait] [--resolution 768P|1080P] [--duration 6|10] [--first-frame url] [--last-frame url] [--subject-reference 'json'] <prompt>");
+                eprintln!("Usage: generate_video [--model m] [--wait] [--resolution 768P|1080P] [--duration 6|10] [--first-frame url] [--last-frame url] [--subject-reference 'json'] [--file <path>] [--output-directory <dir>] <prompt>");
                 exit(1);
             }
 
@@ -568,7 +662,7 @@ async fn main() {
 
             let req = VideoGenerationRequest {
                 model,
-                prompt,
+                prompt: prompt.clone(),
                 first_frame_image,
                 last_frame_image,
                 subject_reference,
@@ -584,9 +678,28 @@ async fn main() {
                 println!("提交视频任务并等待完成...");
                 match client.generate_video_and_download(&req).await {
                     Ok(bytes) => {
-                        match utils::save_and_play_audio_bytes(&bytes, "video") {
-                            Ok(path) => println!("视频已保存: {}", path.display()),
-                            Err(e) => eprintln!("视频下载成功但保存失败: {}", e),
+                        let custom = out_file.is_some() || out_dir.is_some();
+                        if custom {
+                            // Use mp4 ext (avoids the legacy .mp3 bug for video bytes)
+                            match utils::write_output_file(
+                                out_file.as_deref(),
+                                out_dir.as_deref(),
+                                "video",
+                                &prompt,
+                                "mp4",
+                                &bytes,
+                            )
+                            .await
+                            {
+                                Ok(Some(p)) => println!("视频已保存: {}", p.display()),
+                                Ok(None) => println!("视频生成成功"),
+                                Err(e) => eprintln!("视频下载成功但保存失败: {}", e),
+                            }
+                        } else {
+                            match utils::save_and_play_audio_bytes(&bytes, "video") {
+                                Ok(path) => println!("视频已保存: {}", path.display()),
+                                Err(e) => eprintln!("视频下载成功但保存失败: {}", e),
+                            }
                         }
                     }
                     Err(e) => {
@@ -610,16 +723,47 @@ async fn main() {
         }
 
         "query_video" => {
-            if args.len() < 3 {
-                eprintln!("Usage: query_video <task_id>");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i >= args.len() {
+                eprintln!("Usage: query_video <task_id> [--file <path>] [--output-directory <dir>]");
                 exit(1);
             }
-            let task_id = &args[2];
+            let task_id = &args[next_i];
+            let custom = out_file.is_some() || out_dir.is_some();
             match client.query_video(task_id).await {
                 Ok(resp) => {
                     println!("任务状态: {}", resp.status);
                     if let Some(file_id) = &resp.file_id {
                         println!("file_id: {}", file_id);
+                    }
+                    if resp.status == "Success" {
+                        if let Some(file_id) = &resp.file_id {
+                            match client.get_file_download_url(file_id).await {
+                                Ok(download_url) => {
+                                    if custom {
+                                        match utils::resolve_output_file(
+                                            out_file.as_deref(),
+                                            out_dir.as_deref(),
+                                            "video",
+                                            task_id,
+                                            "mp4",
+                                        ) {
+                                            Ok(Some(path)) => {
+                                                match client.download_to_path(&download_url, &path).await {
+                                                    Ok(()) => println!("视频已保存: {}", path.display()),
+                                                    Err(e) => eprintln!("下载失败: {}", e),
+                                                }
+                                            }
+                                            Ok(None) => println!("视频可下载: {}", download_url),
+                                            Err(e) => eprintln!("路径解析失败: {}", e),
+                                        }
+                                    } else {
+                                        println!("download_url: {}", download_url);
+                                    }
+                                }
+                                Err(e) => eprintln!("获取下载链接失败: {}", e),
+                            }
+                        }
                     }
                 }
                 Err(e) => {
@@ -630,12 +774,13 @@ async fn main() {
         }
 
         "generate_music" => {
-            if args.len() < 4 {
-                eprintln!("Usage: generate_music <prompt> <lyrics>");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i + 1 >= args.len() {
+                eprintln!("Usage: generate_music [--file <path>] [--output-directory <dir>] <prompt> <lyrics>");
                 exit(1);
             }
-            let prompt = &args[2];
-            let lyrics = &args[3];
+            let prompt = &args[next_i];
+            let lyrics = &args[next_i + 1];
             let req = MusicGenerationRequest {
                 model: "music-2.6".to_string(),
                 prompt: prompt.clone(),
@@ -655,13 +800,36 @@ async fn main() {
                 lyrics_optimizer: None,
                 is_instrumental: None,
             };
+            let custom = out_file.is_some() || out_dir.is_some();
             match client.generate_music(&req).await {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
                         if let Some(audio) = &data.audio {
-                            match utils::save_and_play_audio(audio, "generate_music") {
-                                Ok(path) => println!("音乐已保存并播放: {}", path.display()),
-                                Err(e) => println!("音乐生成成功，保存/播放失败: {}", e),
+                            if custom {
+                                match utils::decode_hex_audio(audio) {
+                                    Ok(bytes) => {
+                                        match utils::write_output_file(
+                                            out_file.as_deref(),
+                                            out_dir.as_deref(),
+                                            "generate_music",
+                                            prompt,
+                                            "mp3",
+                                            &bytes,
+                                        )
+                                        .await
+                                        {
+                                            Ok(Some(p)) => println!("音乐已保存: {}", p.display()),
+                                            Ok(None) => println!("音乐生成成功"),
+                                            Err(e) => println!("保存失败: {}", e),
+                                        }
+                                    }
+                                    Err(e) => println!("hex 解码失败: {}", e),
+                                }
+                            } else {
+                                match utils::save_and_play_audio(audio, "generate_music") {
+                                    Ok(path) => println!("音乐已保存并播放: {}", path.display()),
+                                    Err(e) => println!("音乐生成成功，保存/播放失败: {}", e),
+                                }
                             }
                         } else {
                             println!("音乐生成成功，但无音频数据");
@@ -709,13 +877,14 @@ async fn main() {
         }
 
         "voice_clone" => {
-            if args.len() < 4 {
-                eprintln!("Usage: voice_clone <voice_id> <audio_file> [text]");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i + 1 >= args.len() {
+                eprintln!("Usage: voice_clone [--file <path>] [--output-directory <dir>] <voice_id> <audio_file> [text]");
                 exit(1);
             }
-            let voice_id = &args[2];
-            let audio_file = &args[3];
-            let text = args.get(4).map(|s| s.as_str());
+            let voice_id = &args[next_i];
+            let audio_file = &args[next_i + 1];
+            let text = args.get(next_i + 2).map(|s| s.as_str());
 
             // Upload the audio file first
             let upload_resp = match client.upload_file(std::path::Path::new(audio_file), "voice_clone").await {
@@ -751,12 +920,32 @@ async fn main() {
                 aigc_watermark: None,
             };
 
+            let custom = out_file.is_some() || out_dir.is_some();
             match client.voice_clone(&req).await {
                 Ok(resp) => {
                     println!("音色克隆成功!");
                     println!("voice_id: {}", req.voice_id);
-                    if let Some(demo) = resp.demo_audio {
-                        println!("demo_audio: {}", demo);
+                    if let Some(demo) = &resp.demo_audio {
+                        if custom {
+                            match utils::resolve_output_file(
+                                out_file.as_deref(),
+                                out_dir.as_deref(),
+                                "voice_clone",
+                                text.unwrap_or("voice"),
+                                "wav",
+                            ) {
+                                Ok(Some(path)) => {
+                                    match client.download_to_path(demo, &path).await {
+                                        Ok(()) => println!("试听音频已保存: {}", path.display()),
+                                        Err(e) => eprintln!("下载失败: {}", e),
+                                    }
+                                }
+                                Ok(None) => println!("demo_audio: {}", demo),
+                                Err(e) => eprintln!("路径解析失败: {}", e),
+                            }
+                        } else {
+                            println!("demo_audio: {}", demo);
+                        }
                     }
                 }
                 Err(e) => {
@@ -767,27 +956,51 @@ async fn main() {
         }
 
         "voice_design" => {
-            if args.len() < 4 {
-                eprintln!("Usage: voice_design <prompt> <preview_text> [voice_id]");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i + 1 >= args.len() {
+                eprintln!("Usage: voice_design [--file <path>] [--output-directory <dir>] <prompt> <preview_text> [voice_id]");
                 exit(1);
             }
-            let prompt = &args[2];
-            let preview_text = &args[3];
-            let voice_id = args.get(4).map(|s| s.as_str());
+            let prompt = &args[next_i];
+            let preview_text = &args[next_i + 1];
+            let voice_id = args.get(next_i + 2).map(|s| s.as_str());
 
             let req = VoiceDesignRequest {
                 prompt: prompt.clone(),
                 preview_text: preview_text.clone(),
                 voice_id: voice_id.map(String::from),
             };
+            let custom = out_file.is_some() || out_dir.is_some();
             match client.voice_design(&req).await {
                 Ok(resp) => {
                     println!("音色设计成功!");
-                    if let Some(id) = resp.voice_id {
+                    if let Some(id) = resp.voice_id.clone() {
                         println!("voice_id: {}", id);
                     }
-                    if let Some(audio) = resp.trial_audio {
-                        println!("trial_audio 长度: {} 字符", audio.len());
+                    if let Some(audio_hex) = &resp.trial_audio {
+                        if custom {
+                            match utils::decode_hex_audio(audio_hex) {
+                                Ok(bytes) => {
+                                    match utils::write_output_file(
+                                        out_file.as_deref(),
+                                        out_dir.as_deref(),
+                                        "voice_design",
+                                        preview_text,
+                                        "mp3",
+                                        &bytes,
+                                    )
+                                    .await
+                                    {
+                                        Ok(Some(p)) => println!("试听音频已保存: {}", p.display()),
+                                        Ok(None) => println!("试听音频长度: {} 字符", audio_hex.len()),
+                                        Err(e) => eprintln!("保存失败: {}", e),
+                                    }
+                                }
+                                Err(e) => eprintln!("hex 解码失败: {}", e),
+                            }
+                        } else {
+                            println!("trial_audio 长度: {} 字符", audio_hex.len());
+                        }
                     }
                 }
                 Err(e) => {
@@ -812,7 +1025,8 @@ async fn main() {
             let mut continuous_sound = false;
             let mut text = String::new();
 
-            let mut i = 2;
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            let mut i = next_i;
             while i < args.len() {
                 let arg = &args[i];
                 if arg == "--voice" && i + 1 < args.len() { voice_id = args[i+1].clone(); i += 2; }
@@ -832,7 +1046,7 @@ async fn main() {
             }
 
             if text.is_empty() {
-                eprintln!("Usage: text_to_audio_stream [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--continuous-sound] <text>");
+                eprintln!("Usage: text_to_audio_stream [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--continuous-sound] [--file <path>] [--output-directory <dir>] <text>");
                 exit(1);
             }
 
@@ -848,7 +1062,7 @@ async fn main() {
                     english_normalization: None,
                     latex_read: None,
                 },
-                audio_setting: Some(WsAudioSetting { sample_rate, bitrate, format, channel }),
+                audio_setting: Some(WsAudioSetting { sample_rate, bitrate, format: format.clone(), channel }),
                 language_boost,
                 pronunciation_dict: None,
                 timbre_weights: None,
@@ -872,9 +1086,27 @@ async fn main() {
                     if audio_bytes.is_empty() {
                         println!("流式 TTS 完成，但无音频数据");
                     } else {
-                        match utils::save_and_play_audio_bytes(&audio_bytes, "stream_tts") {
-                            Ok(path) => println!("音频已保存并播放: {}", path.display()),
-                            Err(e) => eprintln!("保存播放失败: {}", e),
+                        let custom = out_file.is_some() || out_dir.is_some();
+                        if custom {
+                            match utils::write_output_file(
+                                out_file.as_deref(),
+                                out_dir.as_deref(),
+                                "stream_tts",
+                                &text,
+                                &format,
+                                &audio_bytes,
+                            )
+                            .await
+                            {
+                                Ok(Some(p)) => println!("音频已保存: {}", p.display()),
+                                Ok(None) => println!("流式 TTS 完成"),
+                                Err(e) => eprintln!("保存失败: {}", e),
+                            }
+                        } else {
+                            match utils::save_and_play_audio_bytes(&audio_bytes, "stream_tts") {
+                                Ok(path) => println!("音频已保存并播放: {}", path.display()),
+                                Err(e) => eprintln!("保存播放失败: {}", e),
+                            }
                         }
                     }
                 }
@@ -901,7 +1133,8 @@ async fn main() {
             let mut text_file_id: Option<i64> = None;
             let mut text = String::new();
 
-            let mut i = 2;
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            let mut i = next_i;
             while i < args.len() {
                 let arg = &args[i];
                 if arg == "--voice" && i + 1 < args.len() { voice_id = args[i+1].clone(); i += 2; }
@@ -921,7 +1154,7 @@ async fn main() {
             }
 
             if text.is_empty() && text_file_id.is_none() {
-                eprintln!("Usage: generate_audio_async [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--text-file-id id] <text>");
+                eprintln!("Usage: generate_audio_async [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] [--model m] [--format f] [--sample-rate r] [--bitrate b] [--channel c] [--language-boost l] [--text-file-id id] [--file <path>] [--output-directory <dir>] <text>");
                 exit(1);
             }
 
@@ -952,19 +1185,25 @@ async fn main() {
                     println!("file_id: {}", resp.file_id);
                     println!("usage_characters: {}", resp.usage_characters);
                     println!("使用 query_audio_task {} 查询并下载", resp.task_id);
+                    if out_file.is_some() || out_dir.is_some() {
+                        println!("提示: --file/--output-directory 在 query_audio_task 步骤生效");
+                        if let Some(f) = &out_file { println!("  output_file = {}", f); }
+                        if let Some(d) = &out_dir { println!("  output_directory = {}", d); }
+                    }
                 }
                 Err(e) => { eprintln!("Error: {}", e); exit(1); }
             }
         }
 
         "query_audio_task" => {
-            if args.len() < 3 {
-                eprintln!("Usage: query_audio_task <task_id>");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i >= args.len() {
+                eprintln!("Usage: query_audio_task [--file <path>] [--output-directory <dir>] <task_id>");
                 exit(1);
             }
-            let task_id: i64 = match args[2].parse() {
+            let task_id: i64 = match args[next_i].parse() {
                 Ok(id) => id,
-                Err(_) => { eprintln!("Invalid task_id: {}", args[2]); exit(1); }
+                Err(_) => { eprintln!("Invalid task_id: {}", args[next_i]); exit(1); }
             };
 
             let query = match client.query_async_tts(task_id).await {
@@ -1014,22 +1253,41 @@ async fn main() {
                 eprintln!("tar 中未找到 mp3 文件");
                 exit(1);
             }
-            match utils::save_and_play_audio_bytes(&mp3_bytes, "async_tts") {
-                Ok(path) => println!("音频已保存并播放: {}", path.display()),
-                Err(e) => eprintln!("保存播放失败: {}", e),
+            let custom = out_file.is_some() || out_dir.is_some();
+            if custom {
+                match utils::write_output_file(
+                    out_file.as_deref(),
+                    out_dir.as_deref(),
+                    "async_tts",
+                    &task_id.to_string(),
+                    "mp3",
+                    &mp3_bytes,
+                )
+                .await
+                {
+                    Ok(Some(p)) => println!("音频已保存: {}", p.display()),
+                    Ok(None) => println!("音频下载成功"),
+                    Err(e) => eprintln!("保存失败: {}", e),
+                }
+            } else {
+                match utils::save_and_play_audio_bytes(&mp3_bytes, "async_tts") {
+                    Ok(path) => println!("音频已保存并播放: {}", path.display()),
+                    Err(e) => eprintln!("保存播放失败: {}", e),
+                }
             }
         }
 
         "generate_music_cover" => {
-            if args.len() < 3 {
-                eprintln!("Usage: generate_music_cover <audio_url> [--prompt p] [--lyrics l]");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i >= args.len() {
+                eprintln!("Usage: generate_music_cover [--file <path>] [--output-directory <dir>] <audio_url> [--prompt p] [--lyrics l]");
                 exit(1);
             }
-            let audio_url = args[2].clone();
+            let audio_url = args[next_i].clone();
             let mut prompt: Option<String> = None;
             let mut lyrics: Option<String> = None;
 
-            let mut i = 3;
+            let mut i = next_i + 1;
             while i < args.len() {
                 let arg = &args[i];
                 if arg == "--prompt" && i + 1 < args.len() { prompt = Some(args[i+1].clone()); i += 2; }
@@ -1043,9 +1301,10 @@ async fn main() {
                 Err(e) => { eprintln!("预处理失败: {}", e); exit(1); }
             };
 
+            let prompt_for_req = prompt.clone();
             let req = MusicGenerationRequest {
                 model: "music-cover".to_string(),
-                prompt: prompt.unwrap_or_default(),
+                prompt: prompt_for_req.unwrap_or_default(),
                 lyrics: lyrics.unwrap_or_default(),
                 audio_setting: MusicAudioSetting { sample_rate: 32000, bitrate: 128000, format: "mp3".to_string() },
                 output_format: None,
@@ -1063,9 +1322,32 @@ async fn main() {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
                         if let Some(audio) = &data.audio {
-                            match utils::save_and_play_audio(audio, "music_cover") {
-                                Ok(path) => println!("翻唱已保存并播放: {}", path.display()),
-                                Err(e) => println!("翻唱生成成功，保存播放失败: {}", e),
+                            let custom = out_file.is_some() || out_dir.is_some();
+                            if custom {
+                                match utils::decode_hex_audio(audio) {
+                                    Ok(bytes) => {
+                                        match utils::write_output_file(
+                                            out_file.as_deref(),
+                                            out_dir.as_deref(),
+                                            "music_cover",
+                                            prompt.as_deref().unwrap_or("cover"),
+                                            "mp3",
+                                            &bytes,
+                                        )
+                                        .await
+                                        {
+                                            Ok(Some(p)) => println!("翻唱已保存: {}", p.display()),
+                                            Ok(None) => println!("翻唱生成成功"),
+                                            Err(e) => println!("保存失败: {}", e),
+                                        }
+                                    }
+                                    Err(e) => println!("hex 解码失败: {}", e),
+                                }
+                            } else {
+                                match utils::save_and_play_audio(audio, "music_cover") {
+                                    Ok(path) => println!("翻唱已保存并播放: {}", path.display()),
+                                    Err(e) => println!("翻唱生成成功，保存播放失败: {}", e),
+                                }
                             }
                         } else { println!("翻唱生成成功，但无音频数据"); }
                     } else { println!("翻唱生成成功"); }
@@ -1154,15 +1436,16 @@ async fn main() {
         }
 
         "generate_video_agent" => {
-            if args.len() < 3 {
-                eprintln!("Usage: generate_video_agent <template_id> [--text-inputs v1,v2,...] [--media-inputs u1,u2,...]");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i >= args.len() {
+                eprintln!("Usage: generate_video_agent [--file <path>] [--output-directory <dir>] <template_id> [--text-inputs v1,v2,...] [--media-inputs u1,u2,...]");
                 exit(1);
             }
-            let template_id = args[2].clone();
+            let template_id = args[next_i].clone();
             let mut text_inputs: Option<Vec<TextInput>> = None;
             let mut media_inputs: Option<Vec<MediaInput>> = None;
 
-            let mut i = 3;
+            let mut i = next_i + 1;
             while i < args.len() {
                 let arg = &args[i];
                 if arg == "--text-inputs" && i + 1 < args.len() {
@@ -1186,23 +1469,49 @@ async fn main() {
                     println!("视频 Agent 任务已提交!");
                     println!("task_id: {}", tid);
                     println!("使用 query_video_agent {} 查询进度", tid);
+                    if out_file.is_some() || out_dir.is_some() {
+                        println!("提示: --file/--output-directory 在 query_video_agent 步骤生效");
+                        if let Some(f) = &out_file { println!("  output_file = {}", f); }
+                        if let Some(d) = &out_dir { println!("  output_directory = {}", d); }
+                    }
                 }
                 Err(e) => { eprintln!("Error: {}", e); exit(1); }
             }
         }
 
         "query_video_agent" => {
-            if args.len() < 3 {
-                eprintln!("Usage: query_video_agent <task_id>");
+            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            if next_i >= args.len() {
+                eprintln!("Usage: query_video_agent [--file <path>] [--output-directory <dir>] <task_id>");
                 exit(1);
             }
-            let task_id = &args[2];
+            let task_id = &args[next_i];
+            let custom = out_file.is_some() || out_dir.is_some();
             match client.query_video_template(task_id).await {
                 Ok(resp) => {
                     println!("状态: {}", resp.status);
                     if resp.status == "Success" {
                         if let Some(ref url) = resp.video_url {
-                            println!("video_url: {}", url);
+                            if custom {
+                                match utils::resolve_output_file(
+                                    out_file.as_deref(),
+                                    out_dir.as_deref(),
+                                    "video_agent",
+                                    task_id,
+                                    "mp4",
+                                ) {
+                                    Ok(Some(path)) => {
+                                        match client.download_to_path(url, &path).await {
+                                            Ok(()) => println!("视频已保存: {}", path.display()),
+                                            Err(e) => eprintln!("下载失败: {}", e),
+                                        }
+                                    }
+                                    Ok(None) => println!("video_url: {}", url),
+                                    Err(e) => eprintln!("路径解析失败: {}", e),
+                                }
+                            } else {
+                                println!("video_url: {}", url);
+                            }
                         }
                     } else if resp.status == "Fail" {
                         println!("任务失败");

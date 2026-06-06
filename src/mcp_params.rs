@@ -24,6 +24,8 @@ pub struct TextToAudioParams {
     pub format: Option<String>,
     #[schemars(description = "输出目录（可选）。提供时保存文件到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp3。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -44,6 +46,8 @@ pub struct VoiceCloneParams {
     pub is_url: Option<bool>,
     #[schemars(description = "输出目录（可选）。提供时保存试听音频到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.wav。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
     #[schemars(description = "语言增强: auto/Chinese/English 等，默认 auto")]
     pub language_boost: Option<String>,
     #[schemars(description = "是否需要降噪，默认 false")]
@@ -62,6 +66,8 @@ pub struct VoiceDesignParams {
     pub voice_id: Option<String>,
     #[schemars(description = "输出目录（可选）。提供时保存试听音频到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp3。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -80,6 +86,8 @@ pub struct GenerateVideoParams {
     pub async_mode: Option<bool>,
     #[schemars(description = "输出目录（可选）。仅在 async_mode=false 时生效，保存视频到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp4。仅在 async_mode=false 时生效，优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
     #[schemars(description = "尾帧图片 URL（可选，用于首尾帧视频，模型需为 MiniMax-Hailuo-02）")]
     pub last_frame_image: Option<String>,
     #[schemars(description = "是否启用 prompt 优化，默认 true")]
@@ -100,6 +108,8 @@ pub struct QueryVideoParams {
     pub task_id: String,
     #[schemars(description = "输出目录（可选）。提供时下载并保存视频到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp4。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -116,6 +126,8 @@ pub struct GenerateImageParams {
     pub prompt_optimizer: Option<bool>,
     #[schemars(description = "输出目录（可选）。提供时保存图片到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.jpg。优先级高于 output_directory；n>1 时作为 stem 模板追加 _0/_1/...；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
     #[schemars(description = "宽度 512-2048，8 的倍数，仅 image-01")]
     pub width: Option<i32>,
     #[schemars(description = "高度 512-2048，8 的倍数，仅 image-01")]
@@ -144,6 +156,8 @@ pub struct GenerateMusicParams {
     pub format: Option<String>,
     #[schemars(description = "输出目录（可选）。提供时保存音乐到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp3。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
     #[schemars(description = "是否添加水印，默认 false")]
     pub aigc_watermark: Option<bool>,
     #[schemars(description = "是否启用歌词优化（仅 music-2.6），默认 false")]
@@ -190,6 +204,8 @@ pub struct GenerateMusicCoverParams {
     pub lyrics: Option<String>,
     #[schemars(description = "输出目录（可选）。提供时保存音乐到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp3。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -236,6 +252,10 @@ pub struct GenerateAudioAsyncParams {
     pub text_file_id: Option<i64>,
     #[schemars(description = "是否添加水印，默认 false")]
     pub aigc_watermark: Option<bool>,
+    #[schemars(description = "输出目录（可选）。在 query_audio_task 步骤生效：下载并保存 mp3 到此目录")]
+    pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp3。在 query_audio_task 步骤生效，优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -244,6 +264,8 @@ pub struct QueryAudioTaskParams {
     pub task_id: String,
     #[schemars(description = "输出目录（可选）。提供时下载并保存 mp3 到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp3。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -276,6 +298,8 @@ pub struct TextToAudioStreamParams {
     pub continuous_sound: Option<bool>,
     #[schemars(description = "输出目录（可选）。提供时保存音频到此目录")]
     pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp3。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
@@ -324,12 +348,20 @@ pub struct GenerateVideoAgentParams {
     pub media_inputs: Option<Vec<serde_json::Value>>,
     #[schemars(description = "回调 URL（可选），用于接收任务状态更新通知")]
     pub callback_url: Option<String>,
+    #[schemars(description = "输出目录（可选）。在 query_video_agent 步骤生效：下载并保存视频到此目录")]
+    pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp4。在 query_video_agent 步骤生效，优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct QueryVideoAgentParams {
     #[schemars(description = "视频Agent任务的 task_id")]
     pub task_id: String,
+    #[schemars(description = "输出目录（可选）。提供时下载并保存视频到此目录")]
+    pub output_directory: Option<String>,
+    #[schemars(description = "输出文件完整路径（可选），如 /tmp/foo.mp4。优先级高于 output_directory；不传时若给了 output_directory 则在该目录下自动命名；都不传则保持原有行为（仅返回 URL）。文件路径中的目录不存在会自动创建。")]
+    pub output_file: Option<String>,
 }
 
 // ============================================================

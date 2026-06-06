@@ -37,27 +37,64 @@ pub async fn handle_generate_image(
 
     let resp = client.generate_image(&req).await.map_err(to_mcp_err)?;
 
-    if let Some(dir) = &params.output_directory {
+    if params.output_directory.is_some() || params.output_file.is_some() {
         if let Some(data) = &resp.data {
-            let path = utils::resolve_and_create_dir(dir).map_err(to_mcp_err)?;
             let mut saved = Vec::new();
+            let total = data.image_urls.len();
+            let user_file = params.output_file.as_deref();
+            let user_dir = params.output_directory.as_deref();
             for (i, url) in data.image_urls.iter().enumerate() {
-                let filename = utils::build_filename(
+                // When user provides a single `output_file`, append `_{i}` to
+                // the stem when n>1, preserving the extension (default jpg).
+                // Otherwise, fall back to per-index auto-naming in user_dir.
+                let per_file = if let Some(f) = user_file {
+                    let p = std::path::Path::new(f);
+                    let parent = p.parent();
+                    let stem = p
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("image");
+                    let ext = p
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("jpg");
+                    let name = if total > 1 {
+                        format!("{stem}_{i}.{ext}")
+                    } else {
+                        format!("{stem}.{ext}")
+                    };
+                    // Reattach parent dir so the full path is preserved.
+                    match parent {
+                        Some(par) if !par.as_os_str().is_empty() => {
+                            Some(par.join(name).to_string_lossy().to_string())
+                        }
+                        _ => Some(name),
+                    }
+                } else {
+                    None
+                };
+                let path = utils::resolve_output_file(
+                    per_file.as_deref(),
+                    user_dir,
                     "image",
                     &format!("{}_{}", i, req.prompt),
                     "jpg",
-                );
-                let filepath = path.join(&filename);
-                client
-                    .download_to_path(url, &filepath)
-                    .await
-                    .map_err(to_mcp_err)?;
-                saved.push(filepath.display().to_string());
+                )
+                .map_err(to_mcp_err)?;
+                if let Some(path) = path {
+                    client
+                        .download_to_path(url, &path)
+                        .await
+                        .map_err(to_mcp_err)?;
+                    saved.push(path.display().to_string());
+                }
             }
-            return Ok(CallToolResult::success(vec![Content::text(format!(
-                "Image saved to:\n{}",
-                saved.join("\n")
-            ))]));
+            if !saved.is_empty() {
+                return Ok(CallToolResult::success(vec![Content::text(format!(
+                    "Image saved to:\n{}",
+                    saved.join("\n")
+                ))]));
+            }
         }
     }
 

@@ -220,3 +220,57 @@ pub async fn download_and_open_image(url: &str, tool: &str) -> Result<PathBuf, M
 
     Ok(filepath)
 }
+
+/// Resolve final output path for generated media files. Returns `None` when
+/// neither `file` nor `output_directory` is set — caller should fall back to
+/// the original response flow (return URL/hex without saving).
+///
+/// Priority: `file` > `output_directory` > `None`.
+/// - `file`: full path (dir + filename). Parent dir is auto-created.
+/// - `output_directory` only: auto-generate `{tool}_{first10}_{ms}.{ext}` in that dir.
+/// - Empty strings are treated as `None`.
+pub fn resolve_output_file(
+    file: Option<&str>,
+    output_directory: Option<&str>,
+    tool: &str,
+    text: &str,
+    ext: &str,
+) -> Result<Option<PathBuf>, MiniMaxError> {
+    let file = file.filter(|s| !s.is_empty());
+    let dir = output_directory.filter(|s| !s.is_empty());
+
+    if let Some(f) = file {
+        let path = PathBuf::from(f);
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+        return Ok(Some(path));
+    }
+    match dir {
+        Some(d) => {
+            let dir = resolve_and_create_dir(d)?;
+            let filename = build_filename(tool, text, ext);
+            Ok(Some(dir.join(filename)))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Write `bytes` to the resolved output path. Returns the final PathBuf, or
+/// `None` when neither `file` nor `output_directory` was provided.
+pub async fn write_output_file(
+    file: Option<&str>,
+    output_directory: Option<&str>,
+    tool: &str,
+    text: &str,
+    ext: &str,
+    bytes: &[u8],
+) -> Result<Option<PathBuf>, MiniMaxError> {
+    let Some(path) = resolve_output_file(file, output_directory, tool, text, ext)? else {
+        return Ok(None);
+    };
+    tokio::fs::write(&path, bytes).await?;
+    Ok(Some(path))
+}
