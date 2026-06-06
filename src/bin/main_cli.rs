@@ -29,11 +29,11 @@ async fn main() {
     if args.len() >= 2 && (args[1] == "-h" || args[1] == "--help") {
         eprintln!("Usage: ./minimax <command> [args...]");
         eprintln!("Commands:");
-        eprintln!("  list_voices               - 列出所有音色（配合 grep 使用）");
+        eprintln!("  list_voices [voice_type] - 列出音色（voice_type: all/system/voice_cloning/voice_generation，默认 all）");
         eprintln!("  query_usage              - 查询账户用量");
         eprintln!("  text_to_audio <text> [--voice v] [--speed 0.5-2.0] [--vol 0-10] [--pitch -12~12] [--emotion e] - 文字转语音（自动播放）");
-        eprintln!("  text_to_audio_stream <text> [--voice v] [--speed 0.5-2.0] [--vol 0-10] ... - 流式 TTS（WebSocket，低延迟）");
-        eprintln!("  generate_audio_async <text> [--voice v] [--vol 0-10] ... - 异步 TTS（长文本，最长 5 万字符）");
+        eprintln!("  text_to_audio_stream <text> [--voice v] [--emotion e] [--continuous-sound] - 流式 TTS（WebSocket，单次最大 10000 字符；continuous_sound 仅 speech-2.8-hd/turbo）");
+        eprintln!("  generate_audio_async <text> [--voice v] [--emotion e] [--text-file-id id] - 异步 TTS（≤5万字符，需配 query_audio_task 拉取结果）");
         eprintln!("  query_audio_task <task_id> - 查询异步 TTS 任务并下载播放");
         eprintln!("  web_search <query>       - 网络搜索");
         eprintln!("  understand_image <prompt> <image_path> - 图片理解");
@@ -41,11 +41,11 @@ async fn main() {
         eprintln!("  generate_image [--aspect-ratio r] [--n n] [--style-type s] [--seed s] ... <prompt> - 图像生成（自动打开）");
         eprintln!("  generate_video [--wait] [--model m] [--resolution r] [--duration d] ... <prompt> - 视频生成");
         eprintln!("  query_video <task_id>    - 查询视频任务状态");
-        eprintln!("  generate_music <prompt> <lyrics> - 音乐生成（自动播放）");
-        eprintln!("  generate_music_cover <audio_url> [--prompt p] [--lyrics l] - 翻唱（自动播放）");
+        eprintln!("  generate_music <prompt> <lyrics> - 音乐生成（自动播放；is_instrumental=true 时 lyrics 传空串）");
+        eprintln!("  generate_music_cover <audio_url> [--prompt p] [--lyrics l] - 翻唱（自动播放；内部自动预处理音频）");
         eprintln!("  generate_lyrics <style>  - 歌词生成");
-        eprintln!("  voice_clone <voice_id> <audio_file> [text] - 音色克隆");
-        eprintln!("  voice_design <prompt> <preview_text> [voice_id] - 音色设计");
+        eprintln!("  voice_clone <voice_id> <audio_file> [text] - 音色克隆（自动上传参考音频）");
+        eprintln!("  voice_design <prompt> <preview_text> [voice_id] - 音色设计 ⚠️ 需要较大账户余额（API error 1008）");
         eprintln!("  delete_voice <voice_type> <voice_id> - 删除音色");
         eprintln!("  list_files <purpose>     - 列出平台文件");
         eprintln!("  retrieve_file <file_id>  - 查看文件详情");

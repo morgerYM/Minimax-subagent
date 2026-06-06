@@ -136,7 +136,7 @@ pub struct GenerateImageParams {
 pub struct GenerateMusicParams {
     #[schemars(description = "音乐风格描述，10-300 字符")]
     pub prompt: String,
-    #[schemars(description = "歌词，10-600 字符，支持 [Intro][Verse][Chorus][Bridge][Outro] 标签")]
+    #[schemars(description = "歌词，10-600 字符，支持 [Intro][Verse][Chorus][Bridge][Outro] 标签。is_instrumental=true 时可传空字符串")]
     pub lyrics: String,
     #[schemars(description = "模型名称，默认 music-2.6")]
     pub model: Option<String>,
@@ -260,7 +260,7 @@ pub struct TextToAudioStreamParams {
     pub vol: Option<f64>,
     #[schemars(description = "音调 -12 到 12，默认 0")]
     pub pitch: Option<i32>,
-    #[schemars(description = "情感: happy/sad/angry/fearful/disgusted/surprised/calm/fluent/whisper")]
+    #[schemars(description = "情感: happy/sad/angry/fearful/disgusted/surprised/calm/fluent/whisper。fluent/whisper 仅 speech-2.6-turbo/hd 模型生效,speech-2.8-hd/turbo 不支持 whisper")]
     pub emotion: Option<String>,
     #[schemars(description = "采样率: 8000/16000/22050/24000/32000/44100，默认 32000")]
     pub sample_rate: Option<i32>,

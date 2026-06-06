@@ -22,7 +22,7 @@ struct MiniMaxMcp {
 
 #[tool_router]
 impl MiniMaxMcp {
-    #[tool(description = "使用 MiniMax 将文本转为语音，返回音频数据或下载链接")]
+    #[tool(description = "将文本转为语音。参数:音色(默认 female-shaonv)、语速、音量、音调、情感(9种,fluent/whisper 仅 speech-2.6-turbo/hd)、采样率、比特率、音频格式、输出目录。返回 hex 编码音频或保存路径。")]
     async fn text_to_audio(
         &self,
         Parameters(params): Parameters<TextToAudioParams>,
@@ -30,7 +30,7 @@ impl MiniMaxMcp {
         tools::tts::handle_text_to_audio(&self.client, params).await
     }
 
-    #[tool(description = "列出 MiniMax 所有可用的音色（系统音色 + 克隆音色）")]
+    #[tool(description = "列出所有音色,支持过滤类型:system(系统)/ voice_cloning(克隆)/ voice_generation(AI 设计)/ all(默认)。")]
     async fn list_voices(
         &self,
         Parameters(params): Parameters<ListVoicesParams>,
@@ -38,7 +38,7 @@ impl MiniMaxMcp {
         tools::tts::handle_list_voices(&self.client, params).await
     }
 
-    #[tool(description = "克隆一个新的音色：上传参考音频，获取新的 voice_id")]
+    #[tool(description = "克隆新音色。自动上传参考音频(本地路径或 URL),指定新 voice_id。可选提供试听文本(text 传入时 model 自动设为 speech-2.8-hd)。支持降噪、音量归一化、语言增强。")]
     async fn voice_clone(
         &self,
         Parameters(params): Parameters<VoiceCloneParams>,
@@ -46,7 +46,7 @@ impl MiniMaxMcp {
         tools::tts::handle_voice_clone(&self.client, params).await
     }
 
-    #[tool(description = "通过文字描述设计一个全新的音色")]
+    #[tool(description = "通过文字 prompt 设计全新音色。需要较大账户余额,余额不足会返回 API error 1008。提供 preview_text 生成试听音频。")]
     async fn voice_design(
         &self,
         Parameters(params): Parameters<VoiceDesignParams>,
@@ -54,7 +54,7 @@ impl MiniMaxMcp {
         tools::tts::handle_voice_design(&self.client, params).await
     }
 
-    #[tool(description = "删除指定的音色")]
+    #[tool(description = "删除指定音色。必填:voice_type(system / voice_cloning / voice_generation)和 voice_id。")]
     async fn delete_voice(
         &self,
         Parameters(params): Parameters<DeleteVoiceParams>,
@@ -91,7 +91,7 @@ impl MiniMaxMcp {
         tools::usage::handle_query_usage(&self.client).await
     }
 
-    #[tool(description = "使用 MiniMax 生成音乐")]
+    #[tool(description = "生成音乐。必填:prompt(风格描述 10-300字符)、lyrics(歌词 10-600字符,支持 [Intro][Verse][Chorus][Bridge][Outro] 标签;is_instrumental=true 时可传空串)。可选:model、format、output_directory、is_instrumental、stream、aigc_watermark、lyrics_optimizer。")]
     async fn generate_music(
         &self,
         Parameters(params): Parameters<GenerateMusicParams>,
@@ -115,7 +115,7 @@ impl MiniMaxMcp {
         tools::music::handle_generate_lyrics(&self.client, params).await
     }
 
-    #[tool(description = "使用 MiniMax 生成翻唱音乐：上传参考音频，可自定义歌词和风格")]
+    #[tool(description = "生成翻唱音乐。传参考音频 URL,内部自动调用预处理提取音频特征,再生成翻唱。可选自定义歌词(不传则从参考音频提取)和风格 prompt。")]
     async fn generate_music_cover(
         &self,
         Parameters(params): Parameters<GenerateMusicCoverParams>,
@@ -139,7 +139,7 @@ impl MiniMaxMcp {
         tools::search::handle_understand_image(&self.client, params).await
     }
 
-    #[tool(description = "使用 MiniMax WebSocket 流式文本转语音，低延迟首包响应")]
+    #[tool(description = "WebSocket 流式 TTS,低延迟。单次最大 10000 字符。continuous_sound 模式(韵律更自然,延迟更高)仅 speech-2.8-hd/turbo 支持。")]
     async fn text_to_audio_stream(
         &self,
         Parameters(params): Parameters<TextToAudioStreamParams>,
@@ -147,7 +147,7 @@ impl MiniMaxMcp {
         tools::tts::handle_text_to_audio_stream(&self.client, params).await
     }
 
-    #[tool(description = "使用 MiniMax 异步文本转语音（支持最长 5 万字符），立即返回 task_id")]
+    #[tool(description = "异步 TTS(≤5万字符,通过 text_file_id 可达 100 万)。返回 task_id 后必须配 query_audio_task 轮询并下载 mp3。支持语速、音量、音调、情感、采样率、比特率、声道、语言增强、水印。")]
     async fn generate_audio_async(
         &self,
         Parameters(params): Parameters<GenerateAudioAsyncParams>,
