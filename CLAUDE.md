@@ -39,11 +39,7 @@ Each capability independently selects its provider. Missing file defaults everyt
 tts = "minimax"
 voice = "minimax"
 video = "minimax"
-image = "minimax"
-music = "minimax"
-chat = "minimax"
-search = "minimax"
-files = "minimax"
+...
 usage = "minimax"
 
 [provider_config.minimax]
@@ -56,103 +52,40 @@ api_host = "https://api.minimaxi.com"
 
 ## Development Setup
 
-### Environment Variables
-
-```bash
-export MINIMAX_API_KEY=your_key          # China region (api.minimaxi.com)
-export MINIMAX_API_HOST=https://api.minimax.io  # optional, defaults to China
-```
-
-### Rust Toolchain
-
-- **Primary**: Rust
-- **Build**: `cargo build --release` — MCP server at `target/release/Subagent-mcp`, CLI at `target/release/Subagent_cli`
-- **Debug binary**: `cargo build` → `target/debug/`
-
-### Adding the MCP Server to Claude Code
-
-- **Do NOT enter an API key** — the server reads `MINIMAX_API_KEY` from the shell environment automatically
-- Add via binary path: `/path/to/Subagent-mcp/target/release/Subagent-mcp`
-- After code changes: `pkill -f Subagent-mcp`, then restart Claude Code
+- **Env**: `MINIMAX_API_KEY=your_key`, `MINIMAX_API_HOST` (optional, defaults to China)
+- **Build**: `cargo build --release` → binaries: `Subagent-mcp`, `Subagent_cli`
+- **Claude Code**: Add via binary path, no API key in config. After changes: `pkill -f Subagent-mcp`
 
 ## Architecture
 
 ```
 src/
-├── bin/main_cli.rs              # CLI entry point (./Subagent_cli <command>)
-├── main.rs                       # MCP server (stdio transport, #[tool_router])
-├── subagent_impl.rs              # Tool factory registrations + run_subagent tool builder
-├── client.rs                     # MiniMaxClient (HTTP API calls, internal to MiniMaxProvider)
-├── consts.rs                     # API endpoints, default model names, polling constants
-├── error.rs                      # MiniMaxError
-├── lib.rs                        # Library root (crate: minimax_api), re-exports
-├── mcp_params.rs                 # MCP tool parameter structs (serde + schemars)
-├── types.rs                      # MiniMax API request/response types (internal)
-├── utils.rs                      # Hex decode, file save, image URL processing
-├── ws_client.rs                  # WebSocket client for streaming TTS
-│
-├── tools/                        # Trait definitions + handler functions
-│   ├── mod.rs
-│   ├── tts/mod.rs                # TtsProvider + VoiceProvider traits + 8 handlers
-│   ├── video/mod.rs              # VideoProvider trait + 4 handlers
-│   ├── image/mod.rs              # ImageProvider trait + handler
-│   ├── music/mod.rs              # MusicProvider trait + 3 handlers
-│   ├── chat/mod.rs               # ChatProvider trait + handler
-│   ├── search/mod.rs             # SearchProvider trait + 2 handlers
-│   ├── files/mod.rs              # FileProvider trait + 3 handlers
-│   ├── usage/mod.rs              # UsageProvider trait + handler
-│   └── subagent.rs               # Subagent handlers (binary-only, not part of library)
-│
-├── providers/                    # Generic types + provider implementations
-│   ├── mod.rs                    # MediaOutput, AsyncTaskHandle, ProviderError, factory
-│   └── minimax/
-│       ├── mod.rs                # MiniMaxProvider struct
-│       ├── tts.rs                # impl TtsProvider + VoiceProvider for MiniMaxProvider
-│       ├── video.rs              # impl VideoProvider
-│       ├── image.rs              # impl ImageProvider
-│       ├── music.rs              # impl MusicProvider
-│       ├── chat.rs               # impl ChatProvider
-│       ├── search.rs             # impl SearchProvider
-│       ├── files.rs              # impl FileProvider
-│       └── usage.rs              # impl UsageProvider
-│
-└── subagent/                     # Generic agent loop framework (library)
-    ├── types.rs                  # SubagentDef, LoopResult, DispatchResult
-    ├── registry.rs               # Load subagents/*.json
-    ├── loop_runner.rs            # run_agent_loop()
-    ├── agent_tool.rs             # AgentTool (self-contained tool w/ schema + execute)
-    └── factory.rs                # ToolRegistry, ToolFactory, tools_for_subagent()
+├── bin/main_cli.rs           # CLI
+├── main.rs                    # MCP server (stdio, #[tool_router])
+├── subagent_impl.rs           # Tool factories + run_subagent builder
+├── client.rs / consts.rs / error.rs / types.rs / utils.rs / ws_client.rs / mcp_params.rs / lib.rs
+├── tools/                     # Trait defs + handlers (9 traits, see table above)
+│   └── {tts,video,image,music,chat,search,files,usage}/ + subagent.rs
+├── providers/minimax/         # MiniMax provider impls
+│   └── {tts,video,image,music,chat,search,files,usage}.rs
+└── subagent/                  # Agent loop framework
+    └── types.rs / registry.rs / loop_runner.rs / agent_tool.rs / factory.rs
 ```
 
 ### Data Flow
 
 ```
-MCP Client → stdio → main.rs #[tool] macro
-  → tools/xxx/mod.rs handler(&dyn Trait, params)
-  → provider trait method (MediaOutput / generic types)
-  → MiniMaxProvider internal code (MiniMaxClient + types.rs)
-  → MiniMax API
-
-CLI → main_cli.rs command parsing
-  → MiniMaxClient directly (not yet migrated to traits)
-  → MiniMax API
-
-Subagent run_subagent
-  → registry.get(name) → SubagentDef (with optional runtime allowed_tools override)
-  → tools_for_subagent(all_tools, subagent) → filtered Vec<AgentTool>
-  → run_agent_loop(client, subagent, task, depth, &sub_tools)
-     → AgentTool::to_spec() → ToolSpec (LLM sees schema only)
-     → LLM calls tool → AgentTool::execute(input, depth) → DispatchResult
+MCP → main.rs #[tool] → handler(&dyn Trait) → provider trait → MiniMaxClient → API
+CLI → main_cli.rs → MiniMaxClient → API
+Subagent: registry.get → tools_for_subagent() (params override JSON) → run_agent_loop
+  → AgentTool::to_spec() (LLM) → AgentTool::execute() (dispatch)
 ```
 
-### Key Design Principles
+### Key Design
 
-- **Generators** (tts, video, image, music, voice_clone, voice_design) return `MediaOutput::Bytes` or `MediaOutput::Url` — handlers handle output_file save
-- **Async tasks** (video, async tts) return `AsyncTaskHandle` on submit, `AsyncTaskResult` on query
-- **Query/report tools** (list_voices, search, files, usage) return domain-specific structs
-- Handler functions never construct API requests or call MiniMaxClient — that's all in MiniMaxProvider
-- Each `#[tool]` method gets its own `Arc<dyn Trait>` field on `MiniMaxMcp`
-- Subagent tools use self-contained `AgentTool` (schema + execute closure) via `ToolRegistry` factory pattern
+- Handlers never construct API requests — that's all in MiniMaxProvider. Each `#[tool]` has its own `Arc<dyn Trait>`.
+- Subagent tools: self-contained `AgentTool` (schema + execute) via `ToolRegistry` factory pattern.
+- `run_subagent` supports runtime `allowed_tools` override — params take priority over JSON config, only affects current layer.
 
 ## Default Models (Latest)
 
@@ -164,121 +97,41 @@ Subagent run_subagent
 | Music | `music-2.6` | Supports `is_instrumental` and `lyrics_optimizer` |
 | Chat | `MiniMax-M3` | 1M context window, max 16,384 output tokens |
 
-### MCP Transport
-
-- **Stdio** (primary) — for Claude Desktop integration
-
-## Adding a New Provider
-
-1. Create `src/providers/<name>/mod.rs` with a struct wrapping the provider's client
-2. Implement the traits you want to support in `src/providers/<name>/{tts,video,...}.rs`
-3. Add `[provider_config.<name>]` to `provider.toml`
-4. Update `create_provider_set()` in `src/providers/mod.rs` to handle the new provider name
-
 ## Development Guide
 
-### Provider Trait Pattern
+### Provider trait pattern
+- Handler: `handle_xxx(&dyn Trait, Params) -> Result<CallToolResult, ErrorData>`
+- Provider impl: `xxx(&self, &Params) -> Result<OutputType, ProviderError>`
+- MiniMaxClient + types.rs are internal to MiniMaxProvider
 
-Each handler function signature:
-```rust
-pub async fn handle_xxx(
-    provider: &dyn XxxProvider,
-    params: XxxParams,
-) -> Result<CallToolResult, ErrorData>
-```
+### API notes
+- Coding Plan endpoints need `MM-API-Source: Minimax-MCP` header
+- Base URLs: China `api.minimaxi.com` / Global `api.minimax.io`; region must match API key
+- `understand_image` needs base64 — use `utils::process_image_url()`
+- Known issues: `/v1/get_voice` needs `voice_type`; `voice_design`/`voice_clone` need balance
 
-Each provider impl method signature:
-```rust
-async fn xxx(&self, params: &XxxParams) -> Result<OutputType, ProviderError>
-```
+### Adding a provider
+1. Create `src/providers/<name>/` with `mod.rs` + trait impls
+2. Add `[provider_config.<name>]` to `provider.toml`
+3. Update `create_provider_set()` in `src/providers/mod.rs`
 
-MiniMaxProvider wraps `MiniMaxClient` (from `src/client.rs`) and all MiniMax-specific types (from `src/types.rs`) are internal.
-
-### API Authentication
-
-- Coding Plan endpoints (`/v1/coding_plan/search`, `/v1/coding_plan/vlm`) require header: `MM-API-Source: Minimax-MCP`
-- API key region must match the base URL:
-  - China: `https://api.minimaxi.com`
-  - Global: `https://api.minimax.io`
-- Image understanding API (`understand_image`) requires base64 data URL format — use `utils::process_image_url()` for local files
-
-### Testing
-
+### Testing / docs
 ```bash
-cargo run --bin Subagent_cli -- list_voices
-cargo run --bin Subagent_cli -- query_usage
 cargo run --bin Subagent_cli -- text_to_audio "你好"
-cargo run --bin Subagent_cli -- web_search "关键词"
-cargo run --bin Subagent_cli -- understand_image "描述" 项目路径/image.png
-```
-
-### Syncing Official API Docs (docs/)
-
-```bash
-./scripts/sync_docs.sh                  # sync all project-relevant docs (default)
-./scripts/sync_docs.sh all              # sync every page from llms.txt
-./scripts/sync_docs.sh --list           # list available slugs
-./scripts/sync_docs.sh <slug> [<slug>]  # sync specific docs only
+./scripts/sync_docs.sh [all|--list|<slug>]
 ```
 
 ## Git & Publishing
 
-### Privacy Rules (DO NOT COMMIT)
-
-- **`.claude/`** — contains local settings and possibly API keys, use `.git/info/exclude` instead
-- **`.env`** — never commit environment files
-- **Absolute paths** — never commit paths containing your username, use `项目路径/...` in docs
-- **mp3 / media files** — generated outputs should not be committed
-
-### Local-only Ignore Rules
-
-Use `.git/info/exclude`:
-```
-target/
-.claude/
-.gitignore
-.env
-*.mp3
-```
+- DO NOT COMMIT: `.claude/`, `.env`, absolute paths, `*.mp3`
+- Use `.git/info/exclude` for `target/`, `.claude/`, `.gitignore`, `.env`, `*.mp3`
+- main 分支：git merge 合并 + 处理冲突 + 上传
+- 其他分支：只能 `git add`，`git commit -m`
 
 ## User Preferences
 
-### Preferred Voices
+- **Voices (female)**: `Portuguese_LovelyLady`, `female-yujie`, `Japanese_KindLady`, `Japanese_CalmLady`
+- **Voices (male)**: `Japanese_GentleButler`
+- **Playback**: `afplay <file_path>`
 
-**Female (priority):**
-- `Portuguese_LovelyLady`
-- `female-yujie`
-- `Japanese_KindLady`
-- `Japanese_CalmLady`
 
-**Male:**
-- `Japanese_GentleButler`
-
-### Audio Playback
-
-```bash
-afplay <file_path>
-```
-
-## Appendix
-
-### API Base URLs
-
-| Region   | Base URL              |
-|----------|-----------------------|
-| China    | `https://api.minimaxi.com` |
-| Global   | `https://api.minimax.io` |
-
-### Known Issues
-
-- `/v1/get_voice` rejects empty JSON — always pass `voice_type` parameter
-- `voice_design` and `voice_clone` require sufficient account balance; insufficient balance returns API error 1008
-
-### Build Output
-
-- Library crate: `minimax_api` (no binary)
-- MCP server binary: `Subagent-mcp`
-- CLI binary: `Subagent_cli`
-
-## git
-- 只能git add，git commit -m,
