@@ -14,7 +14,7 @@ use crate::types::*;
 /// MiniMax API client — typed async wrapper for all MiniMax endpoints.
 ///
 /// ```no_run
-/// use minimax_api::MiniMaxClient;
+/// use crate::MiniMaxClient;
 /// let client = MiniMaxClient::from_env()?;
 /// ```
 #[derive(Clone)]

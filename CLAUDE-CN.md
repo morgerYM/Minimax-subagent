@@ -4,106 +4,196 @@
 
 ## 项目概述
 
-`Minimax-mcp` 是一个基于 Rust 的 CLI 工具，通过 MCP（Model Context Protocol）提供 MiniMax API 能力。封装了 MiniMax 的文本对话、语音合成、视频生成、图像生成、音乐生成和文件管理接口。
+`Subagent-mcp` 是一个 Rust 项目，通过 MCP（Model Context Protocol）和**基于 trait 的 provider 架构**提供 AI 能力。库层定义能力接口，各供应商（如 MiniMax）实现这些接口。MCP server 和 CLI 都通过 trait 消费 provider。
 
-**已实现的 MCP 工具：**
-- `text_to_audio` / `text_to_audio_stream` / `generate_audio_async` / `query_audio_task` — 语音合成
-- `list_voices` / `voice_clone` / `voice_design` / `delete_voice` — 音色管理
-- `generate_image` / `understand_image` — 图像
-- `generate_video` / `generate_video_agent` / `query_video` / `query_video_agent` — 视频
-- `generate_music` / `generate_music_cover` / `generate_lyrics` — 音乐
-- `chat` / `web_search` — 文本对话
-- `query_usage` — 账户用量
-- `list_files` / `retrieve_file` / `delete_file` — 文件管理
+### 能力 Trait（9 个接口）
 
-## 开发环境配置
+| Trait | 覆盖工具 | 文件 |
+|---|---|---|
+| `TtsProvider` | `text_to_audio`, `text_to_audio_stream`, `generate_audio_async`, `query_audio_task` | `src/tools/tts/mod.rs` |
+| `VoiceProvider` | `list_voices`, `voice_clone`, `voice_design`, `delete_voice` | `src/tools/tts/mod.rs` |
+| `VideoProvider` | `generate_video`, `query_video`, `generate_video_agent`, `query_video_agent` | `src/tools/video/mod.rs` |
+| `ImageProvider` | `generate_image` | `src/tools/image/mod.rs` |
+| `MusicProvider` | `generate_music`, `generate_lyrics`, `generate_music_cover` | `src/tools/music/mod.rs` |
+| `ChatProvider` | `chat` | `src/tools/chat/mod.rs` |
+| `SearchProvider` | `web_search`, `understand_image` | `src/tools/search/mod.rs` |
+| `FileProvider` | `list_files`, `retrieve_file`, `delete_file`, `upload_file` | `src/tools/files/mod.rs` |
+| `UsageProvider` | `query_usage` | `src/tools/usage/mod.rs` |
 
-### 环境变量
+### Subagent 工具（独立，不走 provider）
+
+- `run_subagent` / `list_subagents` / `get_subagent` — subagent 管理（直接使用 MiniMaxClient）
+
+## Provider 配置
+
+### provider.toml（项目根目录）
+
+每个能力独立选择供应商。文件缺失时全部默认 `minimax`。
+
+```toml
+[providers]
+tts = "minimax"
+voice = "minimax"
+video = "minimax"
+image = "minimax"
+music = "minimax"
+chat = "minimax"
+search = "minimax"
+files = "minimax"
+usage = "minimax"
+
+[provider_config.minimax]
+api_key_env = "MINIMAX_API_KEY"
+api_host = "https://api.minimaxi.com"
+```
+
+- **API key 不在配置文件中** — `api_key_env` 告诉 factory 从哪个环境变量读取
+- 无 `provider.toml` → 全部默认 `minimax` + `MINIMAX_API_KEY` / `MINIMAX_API_HOST` 环境变量
+
+## 环境变量
 
 ```bash
 export MINIMAX_API_KEY=your_key          # 中国区 (api.minimaxi.com)
-export MINIMAX_API_KEY=your_key          # 国际区 (api.minimax.io)
+export MINIMAX_API_HOST=https://api.minimax.io  # 可选，默认中国区
 ```
 
-### Rust 工具链
+## Rust 工具链
 
 - **主要语言**：Rust
-- **编译**：`cargo build --release` — MCP server 从 `target/release/Minimax-mcp` 运行
-- **调试构建**：`cargo build` → `target/debug/Minimax-mcp`
-
-### 添加 MCP Server 到 Claude Code
-
-- **无需输入 API key** — server 启动时自动从 shell 环境变量读取 `MINIMAX_API_KEY`
-- 通过二进制路径添加：`/path/to/Minimax-mcp/target/release/Minimax-mcp`
-- 代码修改后需重启：先执行 `pkill -f Minimax-mcp`，然后退出并重新进入 Claude Code
+- **编译**：`cargo build --release` — MCP server: `target/release/Subagent-mcp`，CLI: `target/release/Subagent_cli`
+- **调试构建**：`cargo build` → `target/debug/`
 
 ## 架构
 
 ```
 src/
-├── bin/main_cli.rs     # CLI 入口（./minimax <command>）
-├── client.rs           # MiniMaxClient（API 调用）
-├── consts.rs          # API 端点、常量
-├── error.rs           # MiniMaxError
-├── lib.rs             # 库入口，导出类型
-├── mcp_params.rs     # MCP 工具参数（serde）
-├── types.rs           # 请求/响应类型
-├── utils.rs           # process_image_url 及其他辅助函数
-├── ws_client.rs       # WebSocket 客户端（流式 TTS）
-└── tools/
-    ├── chat.rs        # chat、web_search
-    ├── files.rs       # 文件列表/获取/删除
-    ├── image.rs       # 生成图像、图片理解
-    ├── music.rs       # 生成音乐、音乐翻唱、歌词生成
-    ├── search.rs      # 网络搜索
-    ├── tts.rs          # 文字转语音、音色克隆、音色设计等
-    ├── usage.rs       # 查询账户用量
-    └── video.rs       # 视频生成、视频Agent
+├── bin/main_cli.rs              # CLI 入口 (./Subagent_cli <command>)
+├── main.rs                       # MCP server (stdio transport, #[tool_router])
+├── subagent_impl.rs              # McpToolDispatcher (subagent 工具路由)
+├── client.rs                     # MiniMaxClient (HTTP API, MiniMaxProvider 内部使用)
+├── consts.rs                     # API 端点、默认模型常量
+├── error.rs                      # MiniMaxError
+├── lib.rs                        # 库入口 (crate: minimax_api)
+├── mcp_params.rs                 # MCP 工具参数结构体 (serde + schemars)
+├── types.rs                      # MiniMax API 请求/响应类型 (内部)
+├── utils.rs                      # Hex 解码、文件保存、图片 URL 处理
+├── ws_client.rs                  # WebSocket 客户端 (流式 TTS)
+│
+├── tools/                        # Trait 定义 + handler 函数
+│   ├── mod.rs
+│   ├── tts/mod.rs                # TtsProvider + VoiceProvider + 8 handler
+│   ├── video/mod.rs              # VideoProvider + 4 handler
+│   ├── image/mod.rs              # ImageProvider + handler
+│   ├── music/mod.rs              # MusicProvider + 3 handler
+│   ├── chat/mod.rs               # ChatProvider + handler
+│   ├── search/mod.rs             # SearchProvider + 2 handler
+│   ├── files/mod.rs              # FileProvider + 3 handler
+│   ├── usage/mod.rs              # UsageProvider + handler
+│   └── subagent.rs               # Subagent handler (binary-only)
+│
+├── providers/                    # 通用类型 + 各供应商实现
+│   ├── mod.rs                    # MediaOutput, AsyncTaskHandle, ProviderError, factory
+│   └── minimax/
+│       ├── mod.rs                # MiniMaxProvider 结构体
+│       ├── tts.rs                # impl TtsProvider + VoiceProvider
+│       ├── video.rs              # impl VideoProvider
+│       ├── image.rs              # impl ImageProvider
+│       ├── music.rs              # impl MusicProvider
+│       ├── chat.rs               # impl ChatProvider
+│       ├── search.rs             # impl SearchProvider
+│       ├── files.rs              # impl FileProvider
+│       └── usage.rs              # impl UsageProvider
+│
+└── subagent/                     # 通用 agent loop 框架 (库)
+    ├── types.rs
+    ├── registry.rs
+    ├── loop_runner.rs
+    ├── dispatcher.rs
+    └── tool_catalog.rs
 ```
 
-### MCP 传输方式
+### 数据流
 
-- **Stdio**（主要）— 用于 Claude Desktop 集成
-- **SSE** — HTTP Server-Sent Events（配置后启用）
+```
+MCP Client → stdio → main.rs #[tool] 宏
+  → tools/xxx/mod.rs handler(&dyn Trait, params)
+  → provider trait 方法 (返回通用类型)
+  → MiniMaxProvider 内部 (MiniMaxClient + types.rs)
+  → MiniMax API
 
-## 默认模型（最新）
+CLI → main_cli.rs 命令解析
+  → MiniMaxClient 直接调用 (暂未迁移到 trait)
+  → MiniMax API
+```
+
+## 添加新供应商
+
+1. 创建 `src/providers/<name>/mod.rs`，封装供应商客户端
+2. 实现需要的能力 trait（不必全部）
+3. 在 `provider.toml` 添加 `[provider_config.<name>]`
+4. 更新 `src/providers/mod.rs` 的 `create_provider_set()` 处理新供应商名
+
+## 默认模型
 
 | 能力 | 默认模型 | 说明 |
 |------|----------|------|
-| 语音合成（同步/流式/异步） | `speech-2.8-hd` | 9 种 emotion：happy/sad/angry/fearful/disgusted/surprised/calm/fluent/whisper |
-| 视频生成 | `MiniMax-Hailuo-2.3` | 02 模型支持 6/10 秒时长 + 768P/1080P 分辨率 |
-| 图像生成 | `image-01` | `image-01-live` 支持 style_type（cartoon/vitality 等） |
-| 音乐生成 | `music-2.6` | 支持 `is_instrumental` 和 `lyrics_optimizer` |
-| 文本对话 | `MiniMax-M3` | 1M 上下文窗口，最大输出 16,384 tokens |
+| 语音合成 | `speech-2.8-hd` | 9 种 emotion |
+| 视频 | `MiniMax-Hailuo-2.3` | 02 支持 6/10 秒 + 768P/1080P |
+| 图像 | `image-01` | `image-01-live` 支持 style_type |
+| 音乐 | `music-2.6` | 支持 `is_instrumental` |
+| 文本对话 | `MiniMax-M3` | 1M 上下文窗口 |
 
 ## 开发指南
 
-### Rust 编译规则
+### Provider Trait 模式
 
-在 tool handler 中，`params.xxx` 字段在构造 `req` 对象时会被 move。此后的访问需通过 `req.xxx`（而非 `params.xxx`）。示例：
-
+Handler 函数签名：
 ```rust
-// params.text 在此被 move 到 req 中
-let req = T2ARequest { text: params.text, .. };
-// 之后使用 req.text，而非 params.text
+pub async fn handle_xxx(
+    provider: &dyn XxxProvider,
+    params: XxxParams,
+) -> Result<CallToolResult, ErrorData>
 ```
+
+Provider 方法签名：
+```rust
+async fn xxx(&self, params: &XxxParams) -> Result<OutputType, ProviderError>
+```
+
+MiniMaxProvider 内部封装 `MiniMaxClient`，`types.rs` 全部类型为内部使用。
 
 ### API 认证
 
-- 编程计划接口（`/v1/coding_plan/search`、`/v1/coding_plan/vlm`）需要添加 header：`MM-API-Source: Minimax-MCP`
-- API key 区域必须与 base URL 匹配：
-  - 中国区：`https://api.minimaxi.com`
-  - 国际区：`https://api.minimax.io`
-- 图片理解接口（`understand_image`）需要 base64 data URL 格式——本地文件可通过 `utils::process_image_url()` 转换
+- Coding Plan 接口需要 header: `MM-API-Source: Minimax-MCP`
+- API key 区域必须匹配 base URL
+- 图片理解接口需要 base64 data URL — 使用 `utils::process_image_url()`
 
 ### 测试命令
 
 ```bash
-cargo run --bin minimax -- list_voices
-cargo run --bin minimax -- query_usage
-cargo run --bin minimax -- text_to_audio "你好"
-cargo run --bin minimax -- web_search "关键词"
-cargo run --bin minimax -- understand_image "描述" 项目路径/image.png
+cargo run --bin Subagent_cli -- list_voices
+cargo run --bin Subagent_cli -- query_usage
+cargo run --bin Subagent_cli -- text_to_audio "你好"
+cargo run --bin Subagent_cli -- web_search "关键词"
+```
+
+## Git 与发布
+
+### 隐私规则（禁止提交）
+
+- **`.claude/`** — 使用 `.git/info/exclude` 替代
+- **`.env`** — 禁止提交
+- **绝对路径** — 文档中使用 `项目路径/...`
+- **mp3 / 媒体文件** — 禁止提交
+
+### 本地排除规则 (`.git/info/exclude`)
+
+```
+target/
+.claude/
+.gitignore
+.env
+*.mp3
 ```
 
 ## 用户偏好
@@ -111,17 +201,12 @@ cargo run --bin minimax -- understand_image "描述" 项目路径/image.png
 ### 音色选择
 
 **女性（优先）：**
-- `Portuguese_LovelyLady` — Lovely Lady
-- `female-yujie` — 御姐音色
-- `Japanese_KindLady` — Kind Lady
-- `Japanese_CalmLady` — Calm Lady
+- `Portuguese_LovelyLady`、`female-yujie`、`Japanese_KindLady`、`Japanese_CalmLady`
 
 **男性：**
-- `Japanese_GentleButler` — Gentle Butler
+- `Japanese_GentleButler`
 
 ### 音频播放
-
-生成音频后，使用以下命令播放：
 
 ```bash
 afplay <file_path>
@@ -131,20 +216,18 @@ afplay <file_path>
 
 ### API 基础地址
 
-| 区域   | Base URL                |
-|--------|-------------------------|
+| 区域 | Base URL |
+|------|----------|
 | 中国区 | `https://api.minimaxi.com` |
-| 国际区 | `https://api.minimax.io`    |
+| 国际区 | `https://api.minimax.io` |
 
-### 已知问题
+### 构建产物
 
-- `/v1/get_voice` 拒绝空 JSON — 必须传递 `voice_type` 参数；`list_voices` 默认使用 `"system"`
-- `voice_design` 和 `voice_clone` 需要账户有足够余额；余额不足会返回 API error 1008
+| 名称 | 类型 |
+|------|------|
+| `minimax_api` | 库 crate (无二进制) |
+| `Subagent-mcp` | MCP server 二进制 |
+| `Subagent_cli` | CLI 二进制 |
 
-### 相关项目
-
-- MiniMax Rust CLI（独立项目） — **与本项目无关**
-
-### 验证习惯
-
-如果觉得有问题，先查阅相关文档/代码/测试结果后再判断，再询问用户。
+## git
+- 只能git add，git commit -m,

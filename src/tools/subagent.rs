@@ -28,8 +28,9 @@ pub async fn handle_run_subagent(
         )
     })?;
 
+    let provider = minimax_api::providers::MiniMaxProvider::new(client.clone());
     let dispatcher = McpToolDispatcher {
-        client: client.clone(),
+        provider: provider.clone(),
         registry: registry.clone(),
     };
 

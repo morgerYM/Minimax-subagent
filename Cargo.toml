@@ -1,5 +1,5 @@
 [package]
-name = "Minimax-mcp"
+name = "Subagent-mcp"
 version = "0.1.0"
 edition = "2021"
 description = "Rust MCP server and library for MiniMax API — video, speech, image, music generation"
@@ -10,11 +10,11 @@ name = "minimax_api"
 path = "src/lib.rs"
 
 [[bin]]
-name = "Minimax-mcp"
+name = "Subagent-mcp"
 path = "src/main.rs"
 
 [[bin]]
-name = "minimax"
+name = "Subagent_cli"
 path = "src/bin/main_cli.rs"
 
 [dependencies]
@@ -34,3 +34,4 @@ base64 = "0.22"
 hex = "0.4"
 tar = "0.4"
 async-trait = "0.1"
+toml = "0.8"
