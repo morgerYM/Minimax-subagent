@@ -1,168 +1,209 @@
-# MiniMax Rust MCP Server
+# Subagent MCP Server
 
-Rust 实现的 MiniMax API MCP 服务器，通过 Model Context Protocol 提供 AI 工具。
+Rust 实现的 MCP 服务器，通过 Model Context Protocol 提供 AI 工具。采用 **trait-based provider 架构**，支持按能力选择不同的 LLM 供应商，默认集成 MiniMax API。
+
+## 架构
+
+```
+Tools (trait 定义 + handler)          Providers (供应商实现)
+─────────────────────────────      ─────────────────────────
+src/tools/tts/mod.rs               src/providers/minimax/tts.rs
+  ├── TtsProvider trait                ├── impl TtsProvider
+  ├── VoiceProvider trait              ├── impl VoiceProvider
+  └── handle_* 函数                    └── (MiniMaxClient + types.rs)
+─────────────────────────────      ─────────────────────────
+src/tools/video/mod.rs             src/providers/minimax/video.rs
+  ├── VideoProvider trait              └── impl VideoProvider
+  └── handle_* 函数
+─────────────────────────────      ─────────────────────────
+        ... (9 个能力 trait)                    ...
+```
+
+- **接口与 handler 在一起**（`tools/xxx/mod.rs`），改接口时不用跨目录跳
+- **供应商在独立目录**（`providers/<name>/`），新增供应商只需开目录 + 实现 trait
+- **`provider.toml`** 按能力独立选择供应商，API key 只在环境变量
 
 ## 功能
 
-- **chat** — Anthropic 兼容接口文本对话
-- **web_search** — 网络搜索 (Token Plan)
-- **understand_image** — 图片理解 (Token Plan)
-- **text_to_audio** — 文本转语音
+### AI 生成
+
+- **text_to_audio** — 文本转语音（同步）
 - **text_to_audio_stream** — WebSocket 流式文本转语音
-- **generate_audio_async** — 异步文本转语音（最长5万字符）
+- **generate_audio_async** — 异步文本转语音（最长 5 万字符）
 - **query_audio_task** — 查询异步 TTS 任务状态
-- **list_voices** — 列出可用音色
-- **voice_clone** — 音色克隆
-- **voice_design** — 音色设计
-- **delete_voice** — 删除指定音色
-- **query_usage** — 查询账户余额
 - **generate_image** — 图像生成
-- **generate_video** — 视频生成
+- **generate_video** — 视频生成（异步/同步两种模式）
 - **query_video** — 查询视频任务状态
+- **generate_video_agent** — 视频 Agent 模板生成
+- **query_video_agent** — 查询视频 Agent 任务状态
 - **generate_music** — 音乐生成
 - **generate_lyrics** — 歌词生成
 - **generate_music_cover** — 音乐翻唱
-- **generate_video_agent** — 视频Agent任务
-- **query_video_agent** — 查询视频Agent任务状态
+
+### 音色管理
+
+- **list_voices** — 列出可用音色（系统/克隆/AI 设计）
+- **voice_clone** — 音色克隆
+- **voice_design** — 通过文字 prompt 设计新音色
+- **delete_voice** — 删除指定音色
+
+### 对话与搜索
+
+- **chat** — 文本对话（Anthropic 兼容接口，支持 coding-plan-vlm/search 等模型）
+- **web_search** — 网络搜索
+- **understand_image** — 图片理解
+
+### 账户与文件
+
+- **query_usage** — 查询账户余额
 - **list_files** — 列出平台文件
-- **retrieve_file** — 获取文件信息
+- **retrieve_file** — 获取文件信息与下载链接
 - **delete_file** — 删除平台文件
+
+### Subagent（子智能体）
+
+- **run_subagent** — 运行具名 subagent，支持递归组合
+- **list_subagents** — 列出所有已加载 subagent
+- **get_subagent** — 查看 subagent 完整配置
+
+Subagent 定义在 `subagents/<name>.json` 中，启动时加载。
 
 ## 快速开始
 
 ### 1. 环境变量
 
-确保 `~/.zshrc` 中已设置：
-
 ```bash
-export MINIMAX_API_KEY="sk-cp-xxxxx"  # 你的 Token Plan API Key
-export MINIMAX_API_HOST="https://api.minimaxi.com"  # 国内
+export MINIMAX_API_KEY="your-api-key"
+export MINIMAX_API_HOST="https://api.minimaxi.com"  # 可选，默认中国区
 ```
 
-加载环境变量：
+### 2. Provider 配置（可选）
 
-```bash
-source ~/.zshrc
+项目根目录创建 `provider.toml`（不创建则全部默认 minimax）：
+
+```toml
+[providers]
+tts = "minimax"
+voice = "minimax"
+video = "minimax"
+image = "minimax"
+music = "minimax"
+chat = "minimax"
+search = "minimax"
+files = "minimax"
+usage = "minimax"
+
+[provider_config.minimax]
+api_key_env = "MINIMAX_API_KEY"
+api_host = "https://api.minimaxi.com"
 ```
 
-### 2. 构建
+- **API key 不在配置文件** — `api_key_env` 告知从哪个环境变量读取
+- 每个能力可独立选择供应商（如 `tts = "minimax"`, `chat = "openai"`）
+
+### 3. 构建
 
 ```bash
 cargo build --release
 ```
 
-二进制文件位置：`target/release/Minimax-mcp`
+构建产物：
+| 产物 | 路径 |
+|------|------|
+| 库 | `minimax_api`（lib） |
+| MCP server | `target/release/Subagent-mcp` |
+| CLI | `target/release/Subagent_cli` |
 
-### 3. CLI 测试
-
-```bash
-source ~/.zshrc
-
-# 测试 MCP 服务器（发送 JSON-RPC 消息）
-./target/release/Minimax-mcp
-```
-
-交互式测试需要发送 JSON-RPC 消息。例如，使用 `socat` 或 `nc`：
+### 4. CLI 测试
 
 ```bash
-# 初始化 + 调用工具
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "initialize",
-  "params": {
-    "protocolVersion": "2024-11-05",
-    "capabilities": {},
-    "clientInfo": {"name": "test", "version": "1.0"}
-  }
-}
-{"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+./target/release/Subagent_cli list_voices
+./target/release/Subagent_cli query_usage
+./target/release/Subagent_cli text_to_audio "你好"
+./target/release/Subagent_cli web_search "关键词"
 ```
 
-### 4. Claude Code 集成
-
-Claude Code 会自动从 `~/.claude/settings.local.json` 加载 MCP 配置。
-
-#### 方式一：自动加载（当前已配置）
-
-查看当前配置：
-
-```bash
-claude mcp list
-```
-
-#### 方式二：手动配置
+### 5. Claude Code 集成
 
 编辑 `~/.claude/settings.local.json`：
 
 ```json
 {
   "mcpServers": {
-    "minimax": {
-      "command": "项目路径/target/release/Minimax-mcp"
+    "Subagent-mcp": {
+      "command": "项目路径/target/release/Subagent-mcp"
     }
   }
 }
 ```
 
-**注意**：`MINIMAX_API_KEY` 环境变量会自动从 shell 环境继承，无需在配置中指定。
+`MINIMAX_API_KEY` 环境变量自动从 shell 继承，无需在配置中指定。
 
-### 5. 重启 MCP 服务器
-
-修改代码后需要重新编译，然后重启 Claude Code：
+修改代码后重新编译并重启 Claude Code：
 
 ```bash
 cargo build --release
-# 退出 Claude Code 并重新进入
+pkill -f Subagent-mcp
+# 重启 Claude Code
 ```
 
-## API Key 说明
+## 添加新供应商
 
-Token Plan API Key (`sk-cp-xxxxx`) 支持：
-
-- `/v1/coding_plan/search` — 搜索
-- `/v1/coding_plan/vlm` — 图片理解
-- `/v1/messages` — 文本对话 (通过 `/anthropic/v1/messages`)
-- 其他 MiniMax API 端点
-
-API Key 通过 `MiniMaxClient::from_env()` 自动从环境变量读取，**不需要**在配置文件中明文存储。
+1. 创建 `src/providers/<name>/mod.rs`，封装供应商客户端
+2. 实现需要的能力 trait（`src/providers/<name>/{tts,video,...}.rs`）
+3. 在 `provider.toml` 添加 `[provider_config.<name>]`
+4. 更新 `src/providers/mod.rs` 的 `create_provider_set()` factory
 
 ## 目录结构
 
 ```
-Minimax_agent/
+Subagent_tools/
 ├── src/
-│   ├── main.rs        # MCP 服务器入口
-│   ├── client.rs      # API 客户端
-│   ├── types.rs       # 请求/响应类型
-│   ├── consts.rs      # 常量定义
-│   ├── utils.rs       # 工具函数
-│   ├── error.rs       # 错误类型
-│   ├── lib.rs         # 库入口
-│   ├── mcp_params.rs  # MCP 工具参数定义
-│   ├── ws_client.rs   # WebSocket 客户端
-│   └── tools/         # 工具实现
-│       ├── chat.rs    # 文本对话
-│       ├── search.rs  # 搜索和图片理解
-│       ├── tts.rs     # 语音合成
-│       ├── video.rs   # 视频生成
-│       ├── image.rs   # 图像生成
-│       ├── music.rs   # 音乐生成
-│       ├── files.rs   # 文件管理
-│       └── usage.rs   # 账户查询
+│   ├── bin/main_cli.rs       # CLI 入口
+│   ├── main.rs                # MCP 服务器入口
+│   ├── subagent_impl.rs       # McpToolDispatcher（subagent 工具路由）
+│   ├── client.rs              # MiniMaxClient（MiniMaxProvider 内部使用）
+│   ├── consts.rs              # 常量定义
+│   ├── types.rs               # MiniMax API 请求/响应类型
+│   ├── utils.rs               # Hex 解码、文件保存、图片处理
+│   ├── ws_client.rs           # WebSocket 客户端
+│   ├── error.rs               # 错误类型
+│   ├── lib.rs                 # 库入口 (crate: minimax_api)
+│   ├── mcp_params.rs          # MCP 工具参数定义
+│   ├── tools/                 # Trait 定义 + handler 函数
+│   │   ├── tts/mod.rs         #   TtsProvider + VoiceProvider
+│   │   ├── video/mod.rs       #   VideoProvider
+│   │   ├── image/mod.rs       #   ImageProvider
+│   │   ├── music/mod.rs       #   MusicProvider
+│   │   ├── chat/mod.rs        #   ChatProvider
+│   │   ├── search/mod.rs      #   SearchProvider
+│   │   ├── files/mod.rs       #   FileProvider
+│   │   ├── usage/mod.rs       #   UsageProvider
+│   │   └── subagent.rs        #   Subagent handler（binary-only）
+│   ├── providers/             # 通用类型 + 供应商实现
+│   │   ├── mod.rs             #   MediaOutput, ProviderError, factory
+│   │   └── minimax/           #   MiniMax 供应商
+│   │       ├── tts.rs, video.rs, image.rs, music.rs
+│   │       ├── chat.rs, search.rs, files.rs, usage.rs
+│   │       └── mod.rs
+│   └── subagent/              # Agent loop 框架（库）
+│       ├── types.rs, registry.rs
+│       ├── loop_runner.rs, dispatcher.rs
+│       └── tool_catalog.rs
+├── subagents/                 # 用户定义的 subagent JSON
 ├── scripts/
-│   └── bump.sh        # 版本号递增脚本
-├── docs/              # MiniMax API 文档
-├── Cargo.toml         # 项目配置
-├── Makefile           # 构建/发布命令
-└── VERSION            # 版本号文件
+│   ├── bump.sh                # 版本号递增
+│   └── sync_docs.sh           # 同步官方 API 文档
+├── docs/provider-Minimax/     # MiniMax API 文档缓存
+├── Cargo.toml
+├── provider.toml              # Provider 配置（可选）
+├── Makefile
+└── VERSION
 ```
 
 ## 故障排除
 
 ### MCP 服务器无响应
-
-确保环境变量已加载：
 
 ```bash
 source ~/.zshrc
@@ -171,8 +212,8 @@ echo $MINIMAX_API_KEY  # 确认有值
 
 ### chat 返回 404
 
-检查是否使用了正确的端点。Token Plan key 需要 `/anthropic` 前缀（代码中已配置）。
+Token Plan key 需要 `/anthropic` 前缀（代码中已配置）。
 
-### 余额不足 (error 1008)
+### voice_design / voice_clone 返回 API error 1008
 
-`voice_clone` 和 `voice_design` 需要较大账户余额，不建议使用。
+账户余额不足，需要充值。
