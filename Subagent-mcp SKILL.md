@@ -148,6 +148,10 @@ get_subagent name="video-creator"
 
 run_subagent name="video-creator" task="用 happy 情感读 'Hello'"
   → 运行 subagent,返回最终文本输出 + 完整 tool 调用历史(含递归 subagent 调用链)
+
+# 运行时覆盖工具白名单（可选）
+run_subagent name="worker" task="搜索..." allowed_tools=["web_search","chat"]
+  → 本次调用仅允许 web_search 和 chat，覆盖 JSON 配置
 ```
 
 **示例 subagent 配置** `subagents/echo.json`:
@@ -160,7 +164,7 @@ run_subagent name="video-creator" task="用 happy 情感读 'Hello'"
   "model": "MiniMax-M3",
   "max_tokens": 4096,
   "max_iterations": 5,
-  "allowed_tools": []
+  "allowed_tools": []     // 空列表 = 只能调用 run_subagent（委派模式）
 }
 ```
 
@@ -170,11 +174,16 @@ run_subagent name="video-creator" task="用 happy 情感读 'Hello'"
 {
   "name": "orchestrator",
   "description": "把任务拆给 worker",
-  "system": "调用 run_subagent(name=\"worker\", task=<用户原始任务>)后,直接回复 worker 的输出。"
+  "system": "调用 run_subagent(name=\"worker\", task=<用户原始任务>)后,直接回复 worker 的输出。",
+  "allowed_tools": []     // 空列表 = 只能调用 run_subagent（委派模式）
 }
 ```
 
 ⚠️ `run_subagent` 本身**总是隐式可用**给所有 subagent,即使 `allowed_tools` 没有列出 — 这是递归组合的关键。
+
+💡 **运行时覆盖**: 调用 `run_subagent` 时可传 `allowed_tools` 参数（如 `["web_search","chat"]`），
+覆盖 subagent JSON 配置。不传则使用 JSON 中的值。传入空列表 `[]` 则只能调用 `run_subagent` 自身。
+该覆盖**仅限当前这一层** —— 如果 subagent 内部再调别的 subagent，新 subagent 使用自己的配置。
 
 ---
 

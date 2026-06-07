@@ -374,6 +374,8 @@ pub struct RunSubagentParams {
     pub name: String,
     #[schemars(description = "交给 subagent 完成的任务描述（user prompt）")]
     pub task: String,
+    #[schemars(description = "工具白名单（可选）。覆盖 subagent JSON 配置中的 allowed_tools。不传则使用 JSON 中的默认值。")]
+    pub allowed_tools: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]

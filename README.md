@@ -62,7 +62,8 @@ src/tools/video/mod.rs             src/providers/minimax/video.rs
 
 ### Subagent（子智能体）
 
-- **run_subagent** — 运行具名 subagent，支持递归组合
+- **run_subagent** — 运行具名 subagent，支持递归组合。可通过 `allowed_tools` 参数
+  运行时覆盖工具白名单（不传则用 JSON 配置）
 - **list_subagents** — 列出所有已加载 subagent
 - **get_subagent** — 查看 subagent 完整配置
 
@@ -161,7 +162,7 @@ Subagent_tools/
 ├── src/
 │   ├── bin/main_cli.rs       # CLI 入口
 │   ├── main.rs                # MCP 服务器入口
-│   ├── subagent_impl.rs       # McpToolDispatcher（subagent 工具路由）
+│   ├── subagent_impl.rs       # 工具工厂注册 + run_subagent 构建器
 │   ├── client.rs              # MiniMaxClient（MiniMaxProvider 内部使用）
 │   ├── consts.rs              # 常量定义
 │   ├── types.rs               # MiniMax API 请求/响应类型
@@ -187,9 +188,11 @@ Subagent_tools/
 │   │       ├── chat.rs, search.rs, files.rs, usage.rs
 │   │       └── mod.rs
 │   └── subagent/              # Agent loop 框架（库）
-│       ├── types.rs, registry.rs
-│       ├── loop_runner.rs, dispatcher.rs
-│       └── tool_catalog.rs
+│       ├── types.rs            #   SubagentDef, LoopResult, DispatchResult
+│       ├── registry.rs         #   加载 subagents/*.json
+│       ├── loop_runner.rs      #   run_agent_loop()
+│       ├── agent_tool.rs       #   AgentTool（自包含，schema + execute 一体）
+│       └── factory.rs          #   ToolRegistry, tools_for_subagent()
 ├── subagents/                 # 用户定义的 subagent JSON
 ├── scripts/
 │   ├── bump.sh                # 版本号递增

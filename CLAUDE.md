@@ -24,6 +24,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `run_subagent` / `list_subagents` / `get_subagent` — subagent management (uses MiniMaxClient directly)
 
+  `run_subagent` 支持运行时工具白名单覆盖：调用时可传 `allowed_tools` 参数
+  （`Option<Vec<String>>`），覆盖 subagent JSON 中的静态配置。不传则回退到 JSON 配置。
+  参见 `src/mcp_params.rs` 中的 `RunSubagentParams`。
+
 ## Provider Configuration
 
 ### provider.toml (project root)
@@ -77,7 +81,7 @@ export MINIMAX_API_HOST=https://api.minimax.io  # optional, defaults to China
 src/
 ├── bin/main_cli.rs              # CLI entry point (./Subagent_cli <command>)
 ├── main.rs                       # MCP server (stdio transport, #[tool_router])
-├── subagent_impl.rs              # McpToolDispatcher (subagent tool → handler routing)
+├── subagent_impl.rs              # Tool factory registrations + run_subagent tool builder
 ├── client.rs                     # MiniMaxClient (HTTP API calls, internal to MiniMaxProvider)
 ├── consts.rs                     # API endpoints, default model names, polling constants
 ├── error.rs                      # MiniMaxError
@@ -113,11 +117,11 @@ src/
 │       └── usage.rs              # impl UsageProvider
 │
 └── subagent/                     # Generic agent loop framework (library)
-    ├── types.rs                  # SubagentDef, LoopResult
+    ├── types.rs                  # SubagentDef, LoopResult, DispatchResult
     ├── registry.rs               # Load subagents/*.json
     ├── loop_runner.rs            # run_agent_loop()
-    ├── dispatcher.rs             # ToolDispatcher trait
-    └── tool_catalog.rs           # 24 static tool specs
+    ├── agent_tool.rs             # AgentTool (self-contained tool w/ schema + execute)
+    └── factory.rs                # ToolRegistry, ToolFactory, tools_for_subagent()
 ```
 
 ### Data Flow
@@ -132,6 +136,13 @@ MCP Client → stdio → main.rs #[tool] macro
 CLI → main_cli.rs command parsing
   → MiniMaxClient directly (not yet migrated to traits)
   → MiniMax API
+
+Subagent run_subagent
+  → registry.get(name) → SubagentDef (with optional runtime allowed_tools override)
+  → tools_for_subagent(all_tools, subagent) → filtered Vec<AgentTool>
+  → run_agent_loop(client, subagent, task, depth, &sub_tools)
+     → AgentTool::to_spec() → ToolSpec (LLM sees schema only)
+     → LLM calls tool → AgentTool::execute(input, depth) → DispatchResult
 ```
 
 ### Key Design Principles
@@ -141,6 +152,7 @@ CLI → main_cli.rs command parsing
 - **Query/report tools** (list_voices, search, files, usage) return domain-specific structs
 - Handler functions never construct API requests or call MiniMaxClient — that's all in MiniMaxProvider
 - Each `#[tool]` method gets its own `Arc<dyn Trait>` field on `MiniMaxMcp`
+- Subagent tools use self-contained `AgentTool` (schema + execute closure) via `ToolRegistry` factory pattern
 
 ## Default Models (Latest)
 

@@ -1,21 +1,23 @@
 //! MCP tool handlers for the subagent system: run_subagent, list_subagents,
-//! get_subagent. The actual agent loop / dispatcher live in
+//! get_subagent. The actual agent loop / self-contained tools live in
 //! `src/subagent_impl.rs` and `minimax_api::subagent`.
 
 use std::sync::Arc;
 
 use minimax_api::mcp_params::*;
-use minimax_api::subagent::{run_agent_loop, specs_for, SubagentRegistry};
+use minimax_api::subagent::{
+    run_agent_loop, tools_for_subagent, AgentTool, SubagentRegistry,
+};
 use minimax_api::MiniMaxClient;
 use rmcp::model::{CallToolResult, Content};
 use rmcp::ErrorData;
 
-use crate::subagent_impl::McpToolDispatcher;
 use crate::to_mcp_err;
 
 pub async fn handle_run_subagent(
     client: &MiniMaxClient,
     registry: &Arc<SubagentRegistry>,
+    all_tools: &[AgentTool],
     params: RunSubagentParams,
 ) -> Result<CallToolResult, ErrorData> {
     let sub = registry.get(&params.name).ok_or_else(|| {
@@ -28,13 +30,16 @@ pub async fn handle_run_subagent(
         )
     })?;
 
-    let provider = minimax_api::providers::MiniMaxProvider::new(client.clone());
-    let dispatcher = McpToolDispatcher {
-        provider: provider.clone(),
-        registry: registry.clone(),
+    // Determine effective allowed_tools: param overrides config
+    let sub_tools = if let Some(tool_override) = &params.allowed_tools {
+        let mut effective = sub.clone();
+        effective.allowed_tools = Some(tool_override.clone());
+        tools_for_subagent(all_tools, &effective)
+    } else {
+        tools_for_subagent(all_tools, sub)
     };
 
-    let result = run_agent_loop(client, sub, &params.task, 0, &dispatcher)
+    let result = run_agent_loop(client, sub, &params.task, 0, &sub_tools)
         .await
         .map_err(to_mcp_err)?;
 
@@ -52,16 +57,15 @@ pub async fn handle_list_subagents(
 
 pub async fn handle_get_subagent(
     registry: &Arc<SubagentRegistry>,
+    all_tools: &[AgentTool],
     params: GetSubagentParams,
 ) -> Result<CallToolResult, ErrorData> {
     let sub = registry.get(&params.name).ok_or_else(|| {
         ErrorData::internal_error(format!("subagent '{}' not found", params.name), None)
     })?;
 
-    // Include the effective tool whitelist so callers can see what tools
-    // the LLM will be offered.
-    let specs = specs_for(sub);
-    let tool_names: Vec<String> = specs.into_iter().map(|s| s.name).collect();
+    let sub_tools = tools_for_subagent(all_tools, sub);
+    let tool_names: Vec<String> = sub_tools.iter().map(|t| t.name.clone()).collect();
 
     let view = serde_json::json!({
         "name": sub.name,

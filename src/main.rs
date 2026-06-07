@@ -9,7 +9,7 @@ use std::sync::Arc;
 use minimax_api::mcp_params::*;
 use minimax_api::providers;
 use minimax_api::providers::ProviderSet;
-use minimax_api::subagent::SubagentRegistry;
+use minimax_api::subagent::{AgentTool, SubagentRegistry, ToolFactoryContext, ToolRegistry};
 use minimax_api::tools::{chat, files, image, music, search, tts, usage, video};
 
 use rmcp::handler::server::wrapper::Parameters;
@@ -36,6 +36,7 @@ struct MiniMaxMcp {
     // Subagent stays with MiniMaxClient for now
     client: minimax_api::MiniMaxClient,
     registry: Arc<SubagentRegistry>,
+    agent_tools: Vec<AgentTool>,
 }
 
 #[tool_router]
@@ -49,7 +50,7 @@ impl MiniMaxMcp {
         &self,
         Parameters(params): Parameters<RunSubagentParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        tools_subagent::handle_run_subagent(&self.client, &self.registry, params).await
+        tools_subagent::handle_run_subagent(&self.client, &self.registry, &self.agent_tools, params).await
     }
 
     #[tool(description = "列出当前可用的所有 subagent(从 subagents/*.json 加载),返回 name + description。")]
@@ -62,7 +63,7 @@ impl MiniMaxMcp {
         &self,
         Parameters(params): Parameters<GetSubagentParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        tools_subagent::handle_get_subagent(&self.registry, params).await
+        tools_subagent::handle_get_subagent(&self.registry, &self.agent_tools, params).await
     }
 
     // ============================================================
@@ -275,6 +276,34 @@ async fn main() -> anyhow::Result<()> {
     let client = minimax_api::MiniMaxClient::from_env()?;
     let registry = Arc::new(SubagentRegistry::load_from_dir(std::path::Path::new("subagents"))?);
 
+    // Build self-contained agent tools using the factory/registry pattern
+    let mut tool_registry = ToolRegistry::new();
+    subagent_impl::register_minimax_capability_tools(
+        &mut tool_registry,
+        tts.clone(),
+        voice.clone(),
+        video.clone(),
+        image.clone(),
+        music.clone(),
+        chat.clone(),
+        search.clone(),
+        files.clone(),
+        usage.clone(),
+    );
+    let ctx = ToolFactoryContext {
+        subagent_registry: registry.clone(),
+    };
+    let mut agent_tools = tool_registry.resolve(&ctx);
+
+    // The run_subagent tool depends on the resolved tool list, so it must
+    // be built AFTER resolving capability tools.
+    let run_subagent_tool = subagent_impl::build_run_subagent_tool(
+        client.clone(),
+        registry.clone(),
+        agent_tools.clone(),
+    );
+    agent_tools.push(run_subagent_tool);
+
     let server = MiniMaxMcp {
         tts_provider: tts,
         voice_provider: voice,
@@ -287,6 +316,7 @@ async fn main() -> anyhow::Result<()> {
         usage_provider: usage,
         client,
         registry,
+        agent_tools,
     };
     let service = server.serve(rmcp::transport::stdio()).await?;
     service.waiting().await?;

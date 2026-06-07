@@ -1,16 +1,20 @@
-//! Subagent subsystem: registry, agent loop, tool dispatcher.
+//! Subagent subsystem: registry, agent loop, self-contained tools.
 //!
 //! Public surface: [`types::SubagentDef`], [`types::LoopResult`], etc.
-//! Implementation modules are populated in subsequent steps.
+//! Tools follow the OpenClaw AnyAgentTool pattern: each [`agent_tool::AgentTool`]
+//! bundles schema + execution, eliminating the central `match` dispatcher.
 
-pub mod dispatcher;
+pub mod agent_tool;
+pub mod factory;
 pub mod loop_runner;
 pub mod registry;
-pub mod tool_catalog;
 pub mod types;
 
-pub use dispatcher::{DispatchResult, ToolDispatcher};
+pub use agent_tool::{
+    call_tool_result_to_dispatch, parse_input, schema_of, to_tool_err, AgentTool, DispatchResult,
+    ExecuteFn, NoParams, RUN_SUBAGENT_NAME,
+};
+pub use factory::{tools_for_subagent, ToolFactory, ToolFactoryContext, ToolRegistry};
 pub use loop_runner::run_agent_loop;
 pub use registry::SubagentRegistry;
-pub use tool_catalog::{all_tool_specs, specs_for, RUN_SUBAGENT_NAME};
 pub use types::{LoopResult, SubagentDef, SubagentSummary, ToolCallRecord};

@@ -2,8 +2,20 @@
 //!
 //! `SubagentDef` is loaded from `subagents/<name>.json` at startup.
 //! `LoopResult` / `ToolCallRecord` describe what the agent loop did.
+//! `DispatchResult` is the unified return type of tool execution.
 
 use serde::{Deserialize, Serialize};
+
+/// Result of dispatching a single tool call.
+///
+/// `output` is sent back to the LLM as a `tool_result` content block.
+/// For errors, `is_error = true` and `output` is the error message —
+/// this lets the LLM see the failure and decide what to do next.
+#[derive(Debug, Clone)]
+pub struct DispatchResult {
+    pub output: String,
+    pub is_error: bool,
+}
 
 /// One subagent definition, loaded from `subagents/<name>.json` at startup.
 #[derive(Debug, Clone, Deserialize)]
