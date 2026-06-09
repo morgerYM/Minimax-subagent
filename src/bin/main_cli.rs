@@ -71,7 +71,7 @@ async fn main() {
         eprintln!("  generate_music_cover <audio_url> [--prompt p] [--lyrics l] [--file <path>] [--output-directory <dir>] - 翻唱（自动播放；内部自动预处理音频）");
         eprintln!("  generate_lyrics <style>  - 歌词生成");
         eprintln!("  voice_clone <voice_id> <audio_file> [text] [--file <path>] [--output-directory <dir>] - 音色克隆（自动上传参考音频）");
-        eprintln!("  voice_design <prompt> <preview_text> [voice_id] [--file <path>] [--output-directory <dir>] - 音色设计 ⚠️ 需要较大账户余额（API error 1008）");
+        eprintln!("  voice_design <prompt> <preview_text> [voice_id] [--file <path>] [--output-directory <dir>] - 音色设计");
         eprintln!("  delete_voice <voice_type> <voice_id> - 删除音色");
         eprintln!("  list_files <purpose>     - 列出平台文件");
         eprintln!("  retrieve_file <file_id>  - 查看文件详情");
@@ -169,7 +169,7 @@ async fn main() {
         "text_to_audio" => {
             // 简单参数解析：text --voice xxx --speed 1.5 --vol 1.0 --pitch 0 --emotion happy
             // 默认音色: female-yujie
-            let (out_file, out_dir, next_i) = parse_output_flags(&args, 2);
+            let (mut out_file, mut out_dir, next_i) = parse_output_flags(&args, 2);
             let mut voice_id = "female-yujie".to_string();
             let mut speed: Option<f64> = None;
             let mut vol: Option<f64> = None;
@@ -199,6 +199,12 @@ async fn main() {
                     i += 2;
                 } else if arg == "--model" && i + 1 < args.len() {
                     model = args[i + 1].clone();
+                    i += 2;
+                } else if arg == "--file" && i + 1 < args.len() {
+                    out_file = Some(args[i + 1].clone());
+                    i += 2;
+                } else if arg == "--output-directory" && i + 1 < args.len() {
+                    out_dir = Some(args[i + 1].clone());
                     i += 2;
                 } else if arg.starts_with("--") {
                     eprintln!("Unknown option: {}", arg);

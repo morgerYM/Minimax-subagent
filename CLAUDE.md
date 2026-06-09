@@ -134,4 +134,5 @@ cargo run --bin Subagent_cli -- text_to_audio "你好"
 - **Voices (male)**: `Japanese_GentleButler`
 - **Playback**: `afplay <file_path>`
 
-
+## crago
+- Subagent_tools and Subagent_cli
