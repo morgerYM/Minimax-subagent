@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::SystemTime;
 
@@ -168,6 +168,26 @@ pub fn save_and_play_audio_bytes(bytes: &[u8], prefix: &str) -> Result<PathBuf, 
         eprintln!("[Warning] afplay playback failed");
     }
 
+    Ok(filepath)
+}
+
+/// Play an audio file via afplay (non-blocking).
+/// Silently ignores errors — playback is best-effort.
+pub fn play_audio_file(path: &Path) {
+    std::thread::spawn({
+        let path = path.to_path_buf();
+        move || {
+            let _ = Command::new("afplay").arg(&path).status();
+        }
+    });
+}
+
+/// Save audio bytes to the current working directory with an auto-generated
+/// filename (`{tool}_{first10_of_text}_{epoch_ms}.{ext}`). Returns the path.
+pub fn save_audio_to_cwd(bytes: &[u8], tool: &str, text: &str, ext: &str) -> Result<PathBuf, MiniMaxError> {
+    let filename = build_filename(tool, text, ext);
+    let filepath = PathBuf::from(&filename);
+    std::fs::write(&filepath, bytes)?;
     Ok(filepath)
 }
 
