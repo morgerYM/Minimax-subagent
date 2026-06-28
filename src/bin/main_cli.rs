@@ -1,7 +1,6 @@
 use std::env;
 use std::io::Read;
 use std::process::exit;
-use std::sync::OnceLock;
 
 use minimax_api::utils;
 use minimax_api::ws_client::WsTtsClient;
@@ -115,21 +114,17 @@ async fn main() {
         exit(1);
     }
 
-    // 延迟初始化：只在真正调用 API 时才需要 token，
-    // --help 和参数校验不需要 token
-    fn client() -> &'static MiniMaxClient {
-        static CLIENT: OnceLock<MiniMaxClient> = OnceLock::new();
-        CLIENT.get_or_init(|| {
-            MiniMaxClient::from_env().unwrap_or_else(|e| {
-                eprintln!("Error: {}", e);
-                exit(1);
-            })
-        })
-    }
+    let client = match MiniMaxClient::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            exit(1);
+        }
+    };
 
     match args[1].as_str() {
         "list_voices" => {
-            match client().list_voices(None).await {
+            match client.list_voices(None).await {
                 Ok(resp) => {
                     println!("=== 系统音色 ===");
                     for v in &resp.system_voice {
@@ -150,7 +145,7 @@ async fn main() {
         }
 
         "query_usage" => {
-            match client().get_token_plan_remains().await {
+            match client.get_token_plan_remains().await {
                 Ok(resp) => {
                     let mut lines = Vec::new();
                     let mut keys: Vec<&String> = resp.extra.keys().collect();
@@ -270,7 +265,7 @@ async fn main() {
                 output_format: None,
                 aigc_watermark: None,
             };
-            match client().text_to_audio(&req).await {
+            match client.text_to_audio(&req).await {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
                         if let Some(audio) = &data.audio {
@@ -326,7 +321,7 @@ async fn main() {
                 exit(1);
             }
             let req = SearchRequest { q: query.clone() };
-            match client().search(&req).await {
+            match client.search(&req).await {
                 Ok(resp) => {
                     println!("搜索结果 (共 {} 条):\n", resp.organic.len());
                     for (i, result) in resp.organic.iter().enumerate() {
@@ -363,7 +358,7 @@ async fn main() {
                 prompt: prompt.clone(),
                 image_url: data_url,
             };
-            match client().vlm(&req).await {
+            match client.vlm(&req).await {
                 Ok(resp) => {
                     if let Some(content) = resp.content {
                         println!("{}", content);
@@ -447,7 +442,7 @@ async fn main() {
                 top_p: None,
                 stream: false,
             };
-            match client().chat(&req).await {
+            match client.chat(&req).await {
                 Ok(resp) => {
                     let result: Vec<String> = resp.content
                         .iter()
@@ -550,7 +545,7 @@ async fn main() {
                 subject_reference: None,
                 style,
             };
-            match client().generate_image(&req).await {
+            match client.generate_image(&req).await {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
                         let custom = out_file.is_some() || out_dir.is_some();
@@ -586,7 +581,7 @@ async fn main() {
                                     "jpg",
                                 ) {
                                     Ok(Some(path)) => {
-                                        match client().download_to_path(url, &path).await {
+                                        match client.download_to_path(url, &path).await {
                                             Ok(()) => println!("  [已保存: {}]", path.display()),
                                             Err(e) => println!("  [下载失败: {}]", e),
                                         }
@@ -696,7 +691,7 @@ async fn main() {
 
             if wait {
                 println!("提交视频任务并等待完成...");
-                match client().generate_video_and_download(&req).await {
+                match client.generate_video_and_download(&req).await {
                     Ok(bytes) => {
                         let custom = out_file.is_some() || out_dir.is_some();
                         if custom {
@@ -728,7 +723,7 @@ async fn main() {
                     }
                 }
             } else {
-                match client().create_video(&req).await {
+                match client.create_video(&req).await {
                     Ok(resp) => {
                         println!("视频任务已提交!");
                         println!("task_id: {}", resp.task_id);
@@ -750,7 +745,7 @@ async fn main() {
             }
             let task_id = &args[next_i];
             let custom = out_file.is_some() || out_dir.is_some();
-            match client().query_video(task_id).await {
+            match client.query_video(task_id).await {
                 Ok(resp) => {
                     println!("任务状态: {}", resp.status);
                     if let Some(file_id) = &resp.file_id {
@@ -758,7 +753,7 @@ async fn main() {
                     }
                     if resp.status == "Success" {
                         if let Some(file_id) = &resp.file_id {
-                            match client().get_file_download_url(file_id).await {
+                            match client.get_file_download_url(file_id).await {
                                 Ok(download_url) => {
                                     if custom {
                                         match utils::resolve_output_file(
@@ -769,7 +764,7 @@ async fn main() {
                                             "mp4",
                                         ) {
                                             Ok(Some(path)) => {
-                                                match client().download_to_path(&download_url, &path).await {
+                                                match client.download_to_path(&download_url, &path).await {
                                                     Ok(()) => println!("视频已保存: {}", path.display()),
                                                     Err(e) => eprintln!("下载失败: {}", e),
                                                 }
@@ -821,7 +816,7 @@ async fn main() {
                 is_instrumental: None,
             };
             let custom_path = out_file.is_some() || out_dir.is_some();
-            match client().generate_music(&req).await {
+            match client.generate_music(&req).await {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
                         if let Some(audio) = &data.audio {
@@ -881,7 +876,7 @@ async fn main() {
                 lyrics: None,
                 title: None,
             };
-            match client().generate_lyrics(&req).await {
+            match client.generate_lyrics(&req).await {
                 Ok(resp) => {
                     if let Some(title) = &resp.song_title {
                         println!("歌名: {}", title);
@@ -911,7 +906,7 @@ async fn main() {
             let text = args.get(next_i + 2).map(|s| s.as_str());
 
             // Upload the audio file first
-            let upload_resp = match client().upload_file(std::path::Path::new(audio_file), "voice_clone").await {
+            let upload_resp = match client.upload_file(std::path::Path::new(audio_file), "voice_clone").await {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Error uploading file: {}", e);
@@ -945,7 +940,7 @@ async fn main() {
             };
 
             let custom = out_file.is_some() || out_dir.is_some();
-            match client().voice_clone(&req).await {
+            match client.voice_clone(&req).await {
                 Ok(resp) => {
                     println!("音色克隆成功!");
                     println!("voice_id: {}", req.voice_id);
@@ -959,7 +954,7 @@ async fn main() {
                                 "wav",
                             ) {
                                 Ok(Some(path)) => {
-                                    match client().download_to_path(demo, &path).await {
+                                    match client.download_to_path(demo, &path).await {
                                         Ok(()) => println!("试听音频已保存: {}", path.display()),
                                         Err(e) => eprintln!("下载失败: {}", e),
                                     }
@@ -995,7 +990,7 @@ async fn main() {
                 voice_id: voice_id.map(String::from),
             };
             let custom = out_file.is_some() || out_dir.is_some();
-            match client().voice_design(&req).await {
+            match client.voice_design(&req).await {
                 Ok(resp) => {
                     println!("音色设计成功!");
                     if let Some(id) = resp.voice_id.clone() {
@@ -1099,7 +1094,7 @@ async fn main() {
                 continuous_sound: Some(continuous_sound),
             };
 
-            let mut ws = match WsTtsClient::connect(&client().base_url, &client().api_key).await {
+            let mut ws = match WsTtsClient::connect(&client.base_url, &client.api_key).await {
                 Ok(ws) => ws,
                 Err(e) => { eprintln!("WebSocket 连接失败: {}", e); exit(1); }
             };
@@ -1211,7 +1206,7 @@ async fn main() {
                 voice_modify: None,
                 aigc_watermark: None,
             };
-            match client().create_async_tts(&req).await {
+            match client.create_async_tts(&req).await {
                 Ok(resp) => {
                     println!("异步 TTS 任务已创建!");
                     println!("task_id: {}", resp.task_id);
@@ -1239,7 +1234,7 @@ async fn main() {
                 Err(_) => { eprintln!("Invalid task_id: {}", args[next_i]); exit(1); }
             };
 
-            let query = match client().query_async_tts(task_id).await {
+            let query = match client.query_async_tts(task_id).await {
                 Ok(q) => q,
                 Err(e) => { eprintln!("Error: {}", e); exit(1); }
             };
@@ -1252,11 +1247,11 @@ async fn main() {
             let file_id = query.file_id.unwrap_or(task_id);
 
             use std::io::Cursor;
-            let download_url = match client().poll_file_download_url(file_id, 30, 5).await {
+            let download_url = match client.poll_file_download_url(file_id, 30, 5).await {
                 Ok(url) => url,
                 Err(e) => { eprintln!("轮询下载链接失败: {}", e); exit(1); }
             };
-            let tar_bytes = match client().download_bytes(&download_url).await {
+            let tar_bytes = match client.download_bytes(&download_url).await {
                 Ok(b) => b,
                 Err(e) => { eprintln!("下载失败: {}", e); exit(1); }
             };
@@ -1336,7 +1331,7 @@ async fn main() {
                 else { i += 1; }
             }
 
-            let cover_feature_id = match client().preprocess_music_cover(&audio_url).await {
+            let cover_feature_id = match client.preprocess_music_cover(&audio_url).await {
                 Ok(resp) => resp.cover_feature_id,
                 Err(e) => { eprintln!("预处理失败: {}", e); exit(1); }
             };
@@ -1358,7 +1353,7 @@ async fn main() {
                 is_instrumental: None,
             };
 
-            match client().generate_music(&req).await {
+            match client.generate_music(&req).await {
                 Ok(resp) => {
                     if let Some(data) = &resp.data {
                         if let Some(audio) = &data.audio {
@@ -1414,7 +1409,7 @@ async fn main() {
                 voice_type: voice_type.clone(),
                 voice_id: voice_id.clone(),
             };
-            match client().delete_voice(&req).await {
+            match client.delete_voice(&req).await {
                 Ok(_) => println!("音色已删除: {} ({})", voice_id, voice_type),
                 Err(e) => { eprintln!("Error: {}", e); exit(1); }
             }
@@ -1427,7 +1422,7 @@ async fn main() {
                 exit(1);
             }
             let purpose = &args[2];
-            match client().list_files(purpose).await {
+            match client.list_files(purpose).await {
                 Ok(resp) => {
                     println!("{} 分类下共 {} 个文件:\n", purpose, resp.files.len());
                     for f in &resp.files {
@@ -1449,7 +1444,7 @@ async fn main() {
                 Ok(id) => id,
                 Err(_) => { eprintln!("Invalid file_id: {}", args[2]); exit(1); }
             };
-            match client().retrieve_file_info(file_id).await {
+            match client.retrieve_file_info(file_id).await {
                 Ok(resp) => {
                     if let Some(f) = &resp.file {
                         println!("file_id: {:?}", f.file_id);
@@ -1474,7 +1469,7 @@ async fn main() {
                 Err(_) => { eprintln!("Invalid file_id: {}", args[2]); exit(1); }
             };
             let purpose = &args[3];
-            match client().delete_file(file_id, purpose).await {
+            match client.delete_file(file_id, purpose).await {
                 Ok(_) => println!("文件已删除: file_id={}, purpose={}", file_id, purpose),
                 Err(e) => { eprintln!("Error: {}", e); exit(1); }
             }
@@ -1508,7 +1503,7 @@ async fn main() {
             }
 
             let req = VideoTemplateGenerationRequest { template_id, text_inputs, media_inputs, callback_url: None };
-            match client().create_video_template(&req).await {
+            match client.create_video_template(&req).await {
                 Ok(resp) => {
                     let tid = resp.task_id.as_deref().unwrap_or("N/A");
                     println!("视频 Agent 任务已提交!");
@@ -1532,7 +1527,7 @@ async fn main() {
             }
             let task_id = &args[next_i];
             let custom = out_file.is_some() || out_dir.is_some();
-            match client().query_video_template(task_id).await {
+            match client.query_video_template(task_id).await {
                 Ok(resp) => {
                     println!("状态: {}", resp.status);
                     if resp.status == "Success" {
@@ -1546,7 +1541,7 @@ async fn main() {
                                     "mp4",
                                 ) {
                                     Ok(Some(path)) => {
-                                        match client().download_to_path(url, &path).await {
+                                        match client.download_to_path(url, &path).await {
                                             Ok(()) => println!("视频已保存: {}", path.display()),
                                             Err(e) => eprintln!("下载失败: {}", e),
                                         }
